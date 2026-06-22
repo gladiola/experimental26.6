@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 using WebAppExperimental266.Services;
 
 namespace WebAppExperimental266.Tests.Services
@@ -31,6 +33,20 @@ namespace WebAppExperimental266.Tests.Services
         {
             var handler = new AdminRouteNotFoundAuthorizationResultHandler();
             var context = BuildHttpContext(new AuthorizeAttribute { Policy = "OtherPolicy" });
+            var authService = new Mock<IAuthenticationService>();
+            authService
+                .Setup(service => service.ForbidAsync(
+                    It.IsAny<HttpContext>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<AuthenticationProperties?>()))
+                .Returns<HttpContext, string?, AuthenticationProperties?>((httpContext, _, _) =>
+                {
+                    httpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    return Task.CompletedTask;
+                });
+            context.RequestServices = new ServiceCollection()
+                .AddSingleton(authService.Object)
+                .BuildServiceProvider();
 
             await handler.HandleAsync(
                 _ => Task.CompletedTask,
