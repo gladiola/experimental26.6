@@ -1,0 +1,49 @@
+digraph FunctionActivation {
+  graph [rankdir=LR, bgcolor="white", pad="0.35", nodesep="0.45", ranksep="0.8", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", color="#1f2937", penwidth=1.1, margin="0.12,0.08"];
+  edge [fontname="Helvetica", color="#475569", penwidth=1.1, arrowsize=0.75];
+
+  HomeUI [label="Home page request", fillcolor="#dbeafe"];
+  HomeCtl [label="HomeController.Index", fillcolor="#dbeafe"];
+  Log [label="LoggingHelper.TrackFunctionCall", fillcolor="#f8fafc"];
+  Authz [label="IAuthorizationService.AuthorizeAsync\n(AdminCertificate check for map selection)", fillcolor="#f8fafc"];
+  Db [label="CrudDbContext.CrudRecords", fillcolor="#f8fafc"];
+  Arc [label="ArcGisSettings\npublic/user/admin URL selection", fillcolor="#f8fafc"];
+
+  UploadUI [label="Upload form submit", fillcolor="#dcfce7"];
+  RecCtl [label="RecordsController.Create", fillcolor="#dcfce7"];
+  UploadPolicy [label="UploadPolicy\nvalidate type/size + read bytes", fillcolor="#f8fafc"];
+  Identity [label="UserIdentityHelper\nowner ID + display name", fillcolor="#f8fafc"];
+  Save [label="CrudDbContext.SaveChangesAsync", fillcolor="#f8fafc"];
+
+  AdminUI [label="Admin route request", fillcolor="#fee2e2"];
+  AdminPolicy [label="AdminCertificateRequirementHandler", fillcolor="#fee2e2"];
+  AdminCtl [label="AdminRecordsController.*", fillcolor="#fee2e2"];
+  Audit [label="AdminCertificateAuditService", fillcolor="#f8fafc"];
+
+  ExpUI [label="Experimental request", fillcolor="#ede9fe"];
+  YubiHandler [label="YubiKeyRequirementHandler", fillcolor="#ede9fe"];
+  OCSP [label="OcspValidationService.ValidateCertificateAsync", fillcolor="#f8fafc"];
+
+  HomeUI -> HomeCtl;
+  HomeCtl -> Log;
+  HomeCtl -> Db;
+  HomeCtl -> Authz;
+  HomeCtl -> Arc;
+
+  UploadUI -> RecCtl;
+  RecCtl -> Log;
+  RecCtl -> UploadPolicy;
+  RecCtl -> Identity;
+  RecCtl -> Save;
+
+  AdminUI -> AdminPolicy;
+  AdminPolicy -> Audit;
+  AdminPolicy -> AdminCtl [label="if authorized"];
+  AdminCtl -> Log;
+  AdminCtl -> Db;
+  AdminCtl -> Audit;
+
+  ExpUI -> YubiHandler;
+  YubiHandler -> OCSP;
+}

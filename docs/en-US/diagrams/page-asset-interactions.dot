@@ -1,0 +1,49 @@
+digraph PageAssets {
+  graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.9", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", color="#1f2937", penwidth=1.1, margin="0.12,0.08"];
+  edge [fontname="Helvetica", color="#475569", penwidth=1.1, arrowsize=0.75];
+
+  subgraph cluster_pages {
+    label="Pages / Endpoints";
+    color="#cbd5e1";
+    style="rounded";
+    Home [label="Home / Public Cards", fillcolor="#dbeafe"];
+    Records [label="My Records", fillcolor="#dcfce7"];
+    Upload [label="Upload POST", fillcolor="#dcfce7"];
+    Admin [label="Admin Records", fillcolor="#fee2e2"];
+    Lang [label="SetLanguage POST", fillcolor="#fef3c7"];
+    Login [label="SignIn / SignOut", fillcolor="#e2e8f0"];
+    Experimental [label="/Experimental/* policy hook", fillcolor="#ede9fe"];
+  }
+
+  subgraph cluster_assets {
+    label="Assets / Services / Stores";
+    color="#cbd5e1";
+    style="rounded";
+    ArcGIS [label="ArcGIS iframe URLs\n(public/user/admin variants)", fillcolor="#f8fafc"];
+    StaticAssets [label="Static assets\nBootstrap / jQuery / site.css / site.js", fillcolor="#f8fafc"];
+    Auth [label="OIDC providers\nAzure AD / AWS Cognito / GCP Identity", fillcolor="#f8fafc"];
+    Cert [label="Client certificates\nadmin cert or YubiKey PIV cert", fillcolor="#f8fafc"];
+    Db [label="CRUD data store\nSQLite by default / Cosmos optional", fillcolor="#f8fafc"];
+    KeyVault [label="Azure Key Vault\nserver TLS cert", fillcolor="#f8fafc"];
+    OCSP [label="OpenBSD OCSP responder\nYubiKey revocation checks", fillcolor="#f8fafc"];
+    Cookie [label="Culture cookie + auth/session cookies", fillcolor="#f8fafc"];
+  }
+
+  Home -> ArcGIS [label="iframe + map links"];
+  Home -> Db [label="reads public records"];
+  Home -> Cert [label="checks admin cert to choose map"];
+  Home -> StaticAssets;
+  Records -> Db [label="owner queries"];
+  Records -> StaticAssets [label="inline filter script"];
+  Upload -> Db [label="save metadata + file bytes"];
+  Upload -> StaticAssets;
+  Admin -> Db [label="all-record queries + CRUD"];
+  Admin -> Cert [label="AdminCertificate policy"];
+  Admin -> StaticAssets [label="inline filter script"];
+  Lang -> Cookie [label="culture cookie"];
+  Login -> Auth [label="OIDC redirect flow"];
+  Experimental -> Cert [label="YubiKeyMfa policy"];
+  Experimental -> OCSP [label="revocation validation"];
+  KeyVault -> Home [style=dashed, label="server TLS available for every page", color="#94a3b8"];
+}

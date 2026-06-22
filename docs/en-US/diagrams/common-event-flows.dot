@@ -1,0 +1,35 @@
+digraph CommonFlows {
+  graph [rankdir=TB, bgcolor="white", pad="0.25", nodesep="0.45", ranksep="0.6", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", color="#1f2937", penwidth=1.1, margin="0.14,0.08"];
+  edge [fontname="Helvetica", color="#475569", penwidth=1.1, arrowsize=0.75];
+
+  Start [label="Visitor opens site", fillcolor="#dbeafe"];
+  Home [label="Home / Public Cards", fillcolor="#dbeafe"];
+  SignIn [label="Click Sign In", fillcolor="#dcfce7"];
+  OIDC [label="OIDC provider login\n(Azure AD / Cognito / GCP)", fillcolor="#dcfce7"];
+  Records [label="My Records", fillcolor="#dcfce7"];
+  Upload [label="Upload JSON card dump", fillcolor="#dcfce7"];
+  Saved [label="Record saved to CRUD store", fillcolor="#dcfce7"];
+  AdminReq [label="Open Admin Records", fillcolor="#fee2e2"];
+  AdminCheck [label="AdminCertificate handler\ncert present + issuer + thumbprint map", fillcolor="#fee2e2"];
+  AdminOk [label="Admin CRUD view unlocked", fillcolor="#fee2e2"];
+  ExpReq [label="Open /Experimental/*", fillcolor="#ede9fe"];
+  Yubi [label="YubiKeyMfa handler\ncert + CA + thumbprint + attestation? + OCSP", fillcolor="#ede9fe"];
+  ExpOk [label="Experimental endpoint allowed\n(if pages exist)", fillcolor="#ede9fe"];
+  Denied [label="403 / access denied", fillcolor="#fecaca"];
+
+  Start -> Home;
+  Home -> SignIn [label="needs private/admin features"];
+  SignIn -> OIDC;
+  OIDC -> Records [label="auth cookie issued"];
+  Records -> Upload;
+  Upload -> Saved;
+  Records -> AdminReq [label="admin route"];
+  AdminReq -> AdminCheck;
+  AdminCheck -> AdminOk [label="pass"];
+  AdminCheck -> Denied [label="fail"];
+  Records -> ExpReq [label="experimental route"];
+  ExpReq -> Yubi;
+  Yubi -> ExpOk [label="pass"];
+  Yubi -> Denied [label="fail"];
+}
