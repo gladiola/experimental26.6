@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Infrastructure;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
@@ -8,17 +10,20 @@ using WebAppExperimental266.Services;
 
 namespace WebAppExperimental266.Controllers
 {
-    [Authorize]
+    [Authorize(Policy = "AuthenticatedUser")]
     public class RecordsController : Controller
     {
         private readonly CrudDbContext _dbContext;
+        private readonly IAuthorizationService _authorizationService;
         private readonly ILogger<RecordsController> _logger;
 
         public RecordsController(
             CrudDbContext dbContext,
+            IAuthorizationService authorizationService,
             ILogger<RecordsController> logger)
         {
             _dbContext = dbContext;
+            _authorizationService = authorizationService;
             _logger = logger;
         }
 
@@ -34,10 +39,11 @@ namespace WebAppExperimental266.Controllers
             return View(records);
         }
 
+        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> Details(string id)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Details");
-            var record = await FindOwnedRecordAsync(id);
+            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Owner, "Details");
             if (record == null)
             {
                 return NotFound();
@@ -148,19 +154,20 @@ namespace WebAppExperimental266.Controllers
 
         [AllowAnonymous]
         [HttpGet]
+        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> Download(string id)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Download");
             CrudRecord? record;
             if (User.Identity?.IsAuthenticated == true)
             {
-                var ownerId = UserIdentityHelper.GetStableUserId(User);
-                record = await _dbContext.CrudRecords.FirstOrDefaultAsync(x => x.Id == id && (x.OwnerId == ownerId || x.IsPublic));
+                record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Read, "Download");
             }
             else
             {
                 record = await _dbContext.CrudRecords.FirstOrDefaultAsync(x => x.Id == id && x.IsPublic);
             }
+
             if (record?.UploadedFileContent == null || record.UploadedFileContent.Length == 0)
             {
                 return NotFound();
@@ -176,10 +183,11 @@ namespace WebAppExperimental266.Controllers
             return File(record.UploadedFileContent, contentType, fileName);
         }
 
+        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> Edit(string id)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Edit");
-            var record = await FindOwnedRecordAsync(id);
+            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Edit, "Edit");
             if (record == null)
             {
                 return NotFound();
@@ -190,6 +198,7 @@ namespace WebAppExperimental266.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> Edit(string id, [Bind("Id,Title,Description")] CrudRecord input)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.EditPost");
@@ -198,7 +207,7 @@ namespace WebAppExperimental266.Controllers
                 return NotFound();
             }
 
-            var record = await FindOwnedRecordAsync(id);
+            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Edit, "EditPost");
             if (record == null)
             {
                 return NotFound();
@@ -235,10 +244,11 @@ namespace WebAppExperimental266.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> Delete(string id)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Delete");
-            var record = await FindOwnedRecordAsync(id);
+            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Delete, "Delete");
             if (record == null)
             {
                 return NotFound();
@@ -249,10 +259,11 @@ namespace WebAppExperimental266.Controllers
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> DeleteConfirmed(string id)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.DeleteConfirmed");
-            var record = await FindOwnedRecordAsync(id);
+            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Delete, "DeleteConfirmed");
             if (record == null)
             {
                 return NotFound();
@@ -272,11 +283,51 @@ namespace WebAppExperimental266.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        private async Task<CrudRecord?> FindOwnedRecordAsync(string id)
+        private async Task<CrudRecord?> FindAuthorizedRecordAsync(
+            string id,
+            OperationAuthorizationRequirement requirement,
+            string actionName)
         {
-            var ownerId = UserIdentityHelper.GetStableUserId(User);
-            return await _dbContext.CrudRecords
-                .FirstOrDefaultAsync(record => record.Id == id && record.OwnerId == ownerId);
+            var record = await _dbContext.CrudRecords.FirstOrDefaultAsync(entry => entry.Id == id);
+            if (record == null)
+            {
+                return null;
+            }
+
+            var authorizationResult = await _authorizationService.AuthorizeAsync(User, record, requirement);
+            if (authorizationResult.Succeeded)
+            {
+                return record;
+            }
+
+            LogOwnershipAuthorizationFailure(actionName, id, record);
+            return null;
+        }
+
+        private void LogOwnershipAuthorizationFailure(string actionName, string recordId, CrudRecord record)
+        {
+            string userIdForLog;
+            try
+            {
+                userIdForLog = UserIdentityHelper.GetStableUserId(User);
+            }
+            catch (InvalidOperationException)
+            {
+                userIdForLog = "unknown-authenticated-user";
+            }
+
+            var hashedUserId = LoggingHelper.HashPii(userIdForLog);
+            _logger.LogWarning(
+                "Ownership authorization failed for action {Action} on record {RecordId}. UserIdHash={UserIdHash} OwnerIdHash={OwnerIdHash}",
+                SanitizeForLog(actionName),
+                SanitizeForLog(recordId),
+                hashedUserId,
+                LoggingHelper.HashPii(record.OwnerId));
+        }
+
+        private static string SanitizeForLog(string value)
+        {
+            return value.Replace("\r", string.Empty).Replace("\n", string.Empty);
         }
     }
 }

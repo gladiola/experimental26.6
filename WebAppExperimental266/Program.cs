@@ -22,6 +22,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Cryptography.X509Certificates;
+using System.Threading.RateLimiting;
 using System.Text;
 using WebAppExperimental266.Models.Main_Objects;
 using WebAppExperimental266.Models.Settings;
@@ -126,6 +127,20 @@ namespace WebAppExperimental266
                 featureFlags.EnableYubiKeyRequired);
             builder.Services.AddCrudDataServices(builder.Configuration, logger, environment);
             builder.Services.AddAdminCertificateAuthorization(builder.Configuration, logger);
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+                options.AddPolicy("RecordIdOperations", context =>
+                    RateLimitPartition.GetFixedWindowLimiter(
+                        partitionKey: GetRateLimitPartitionKey(context),
+                        factory: _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 30,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0,
+                            AutoReplenishment = true
+                        }));
+            });
 
             var arcGisSettings = builder.Configuration.GetSection("ArcGisSettings").Get<WebAppExperimental266.Models.Settings.ArcGisSettings>()
                 ?? new WebAppExperimental266.Models.Settings.ArcGisSettings();
@@ -258,6 +273,7 @@ namespace WebAppExperimental266
             }
 
             app.UseAuthentication();
+            app.UseRateLimiter();
 
             // UseAuthorization must always be present when any endpoint has authorization metadata
             app.UseAuthorization();
@@ -271,6 +287,23 @@ namespace WebAppExperimental266
 
             logger.LogInformation("=== Application Ready - Starting Server ===");
             app.Run();
+        }
+
+        private static string GetRateLimitPartitionKey(HttpContext context)
+        {
+            if (context.User?.Identity?.IsAuthenticated == true)
+            {
+                try
+                {
+                    return $"user:{UserIdentityHelper.GetStableUserId(context.User)}";
+                }
+                catch (InvalidOperationException)
+                {
+                    return "user:unknown-authenticated";
+                }
+            }
+
+            return $"anon:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
         }
     }
 }
