@@ -77,11 +77,15 @@ namespace WebAppExperimental266.Extensions
         {
             var settings = configuration.GetSection("AdminCertificateSettings").Get<AdminCertificateSettings>()
                 ?? new AdminCertificateSettings();
+            var groupAccessSettings = configuration.GetSection("GroupAccessSettings").Get<GroupAccessSettings>()
+                ?? new GroupAccessSettings();
 
             services.AddSingleton(settings);
+            services.AddSingleton(groupAccessSettings);
             services.AddHttpContextAccessor();
             services.AddSingleton<IAdminCertificateAuditService, AdminCertificateAuditService>();
             services.AddSingleton<IAuthorizationHandler, AdminCertificateRequirementHandler>();
+            services.AddSingleton<IAuthorizationHandler, GroupAdminCertificateRequirementHandler>();
             services.AddSingleton<IAuthorizationHandler, CrudRecordAuthorizationHandler>();
             services.AddSingleton<IAuthorizationHandler, AuthenticatedUserRequirementHandler>();
             services.AddSingleton<IAuthorizationMiddlewareResultHandler, AdminRouteNotFoundAuthorizationResultHandler>();
@@ -95,6 +99,10 @@ namespace WebAppExperimental266.Extensions
                 options.AddPolicy("AuthenticatedUser", policy =>
                     policy.RequireAuthenticatedUser()
                           .AddRequirements(new AuthenticatedUserRequirement()));
+
+                options.AddPolicy("GroupAdminCertificate", policy =>
+                    policy.RequireAuthenticatedUser()
+                          .AddRequirements(new GroupAdminCertificateRequirement()));
             });
 
             if (settings.AllowedIssuers.Count == 0)
@@ -108,6 +116,12 @@ namespace WebAppExperimental266.Extensions
             {
                 logger.LogWarning(
                     "Admin certificate authorization is enabled but no AdminCertificateSettings:AdminUsers mappings were configured.");
+            }
+
+            if (groupAccessSettings.Groups.Count == 0)
+            {
+                logger.LogWarning(
+                    "Group admin authorization is enabled but GroupAccessSettings:Groups is empty.");
             }
 
             return services;
