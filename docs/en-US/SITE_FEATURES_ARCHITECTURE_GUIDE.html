@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Site Features, Roles, Flows, and Certificate Architecture Guide</title>
+<style>
+  @page { size: Letter; margin: 0.5in; }
+  :root { --ink:#0f172a; --muted:#475569; --line:#cbd5e1; --panel:#f8fafc; --brand:#1d4ed8; --accent:#7c3aed; }
+  * { box-sizing:border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: var(--ink); margin:0; background:white; line-height:1.48; }
+  .page { max-width: 900px; margin: 0 auto; padding: 28px 34px 40px; }
+  h1 { font-size: 28px; margin: 0 0 10px; }
+  h2 { font-size: 22px; margin-top: 28px; padding-top: 10px; border-top: 2px solid var(--line); }
+  h3 { font-size: 17px; margin-top: 22px; }
+  p, li { font-size: 13.5px; }
+  .hero { background: linear-gradient(135deg, #eff6ff, #f5f3ff); border:1px solid var(--line); border-radius:16px; padding:24px 24px 18px; margin-bottom: 22px; }
+  .hero p { margin: 8px 0 0; color: var(--muted); }
+  blockquote { margin: 16px 0; padding: 12px 16px; background: #fff7ed; border-left: 4px solid #f59e0b; color: #7c2d12; }
+  table { width:100%; border-collapse: collapse; margin: 14px 0 18px; font-size:12.5px; }
+  th, td { border:1px solid var(--line); padding:8px 9px; vertical-align: top; }
+  th { background:#eff6ff; text-align:left; }
+  code { background:#eef2ff; padding:1px 4px; border-radius:4px; }
+  img { width:100%; max-width:100%; border:1px solid var(--line); border-radius: 12px; background:white; padding:8px; margin: 10px 0 14px; }
+  ul { padding-left: 20px; }
+  .footer { margin-top:32px; font-size:11px; color:var(--muted); border-top:1px solid var(--line); padding-top:10px; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>Site Features, Roles, Flows, and Certificate Architecture Guide</h1>
+      <p>US-English documentation for the current WebAppExperimental266 site structure, page-to-asset relationships, role activation paths, certificate workflows, YubiKey login handling, and automated test behavior.</p>
+    </section>
+    <h1 id="site-features-roles-flows-and-certificate-architecture-guide-en-us">Site Features, Roles, Flows, and Certificate Architecture Guide (en-US)</h1>
+<p>This guide documents the current structure of the site, the roles that are actually wired into the repository, the pages and assets those roles activate, the most common request flows, the certificate-authority processes behind privileged access, and how the automated tests interact with the application.</p>
+<blockquote>
+<p><strong>Current-scope note:</strong> The repository currently implements <strong>public</strong>, <strong>authenticated user</strong>, <strong>site admin (admin certificate)</strong>, and <strong>YubiKey MFA policy</strong> flows. A dedicated <strong>group admin</strong> role is <strong>not implemented in the current checkout</strong>, and the <code>/Experimental/*</code> YubiKey policy hook exists even though no Razor Pages currently live under that folder.</p>
+</blockquote>
+<h2 id="feature-summary">Feature summary</h2>
+<ul>
+<li>Public visitors can browse public card dumps, open ArcGIS maps, switch language, and download public files.</li>
+<li>Authenticated users can sign in through an OIDC provider and manage their own records.</li>
+<li>Site admins must pass the normal login flow <strong>and</strong> present a mapped admin client certificate to access the admin-records surface.</li>
+<li>YubiKey MFA is modeled as a second factor for <code>/Experimental/*</code>: a signed-in user must also present a trusted YubiKey PIV certificate and pass OCSP validation.</li>
+<li>The app can integrate with Azure Key Vault, Cosmos DB, Blob Storage, AWS services, and GCP services through feature flags.</li>
+<li>Tests are run with <code>dotnet test</code>; they are not executed during plain compilation.</li>
+</ul>
+<h2 id="role-inventory">Role inventory</h2>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Implemented now</th>
+<th>Gate</th>
+<th>Main active pages</th>
+<th>Main assets/services activated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Public visitor</td>
+<td>Yes</td>
+<td>None</td>
+<td>Home, Privacy, About, public downloads</td>
+<td>ArcGIS public URL, CRUD read for public rows, static assets</td>
+</tr>
+<tr>
+<td>Authenticated user</td>
+<td>Yes</td>
+<td>OIDC login (Azure AD, AWS Cognito, or GCP Identity)</td>
+<td>My Records, Upload, owner Details/Edit/Delete</td>
+<td>Auth cookie, CRUD owner queries, inline filters, user ArcGIS URL</td>
+</tr>
+<tr>
+<td>Site admin</td>
+<td>Yes</td>
+<td>OIDC login + <code>AdminCertificate</code> policy</td>
+<td>Admin Records CRUD</td>
+<td>Client certificate, audit logging, full CRUD, admin ArcGIS URL</td>
+</tr>
+<tr>
+<td>YubiKey MFA user</td>
+<td>Policy only</td>
+<td>OIDC login + <code>YubiKeyMfa</code> policy</td>
+<td><code>/Experimental/*</code> if pages are added</td>
+<td>YubiKey PIV certificate, OCSP, optional attestation checks</td>
+</tr>
+<tr>
+<td>Group admin</td>
+<td>No</td>
+<td>Not implemented</td>
+<td>None</td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<h2 id="diagram-1-whole-site-structure">Diagram 1 — whole-site structure</h2>
+<p><img alt="Whole-site structure" src="diagrams/site-structure.svg" /></p>
+<p>The site surface is centered on three implemented controller areas:</p>
+<ul>
+<li><code>HomeController</code> for public content and role-based map selection.</li>
+<li><code>RecordsController</code> for owner-scoped CRUD actions after sign-in.</li>
+<li><code>AdminRecordsController</code> for admin-scoped CRUD actions after both primary login and certificate validation.</li>
+</ul>
+<p>The repo also wires a YubiKey policy to <code>/Experimental/*</code>, but there are no Razor Pages under <code>Pages/Experimental</code> in this checkout.</p>
+<h2 id="page-and-route-inventory">Page and route inventory</h2>
+<table>
+<thead>
+<tr>
+<th>Route or surface</th>
+<th>Access</th>
+<th>Core code path</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/</code></td>
+<td>Public</td>
+<td><code>HomeController.Index</code></td>
+<td>Lists public records and chooses a public/user/admin ArcGIS map URL</td>
+</tr>
+<tr>
+<td><code>/Privacy</code>, <code>/Home/Privacy</code></td>
+<td>Public</td>
+<td><code>HomeController.Privacy</code></td>
+<td>Static privacy page</td>
+</tr>
+<tr>
+<td><code>/AboutUs</code>, <code>/Home/AboutUs</code></td>
+<td>Public</td>
+<td><code>HomeController.AboutUs</code></td>
+<td>Static about page</td>
+</tr>
+<tr>
+<td><code>POST /Home/SetLanguage</code></td>
+<td>Public</td>
+<td><code>HomeController.SetLanguage</code></td>
+<td>Persists culture choice in a cookie</td>
+</tr>
+<tr>
+<td><code>/Records</code></td>
+<td>Authenticated user</td>
+<td><code>RecordsController.Index</code></td>
+<td>Lists the current user’s records</td>
+</tr>
+<tr>
+<td><code>/upload</code></td>
+<td>Authenticated user</td>
+<td><code>RecordsController.Create</code></td>
+<td>Uploads a JSON card dump and metadata</td>
+</tr>
+<tr>
+<td><code>/Records/Details/{id}</code></td>
+<td>Owner/public read rules</td>
+<td><code>RecordsController.Details</code></td>
+<td>Shows one record</td>
+</tr>
+<tr>
+<td><code>/Records/Edit/{id}</code></td>
+<td>Owner only</td>
+<td><code>RecordsController.Edit</code></td>
+<td>Updates title/description</td>
+</tr>
+<tr>
+<td><code>/Records/Delete/{id}</code></td>
+<td>Owner only</td>
+<td><code>RecordsController.Delete</code></td>
+<td>Removes a record</td>
+</tr>
+<tr>
+<td><code>/Records/Download/{id}</code></td>
+<td>Public or authorized</td>
+<td><code>RecordsController.Download</code></td>
+<td>Downloads file content</td>
+</tr>
+<tr>
+<td><code>/AdminRecords/*</code></td>
+<td>Site admin</td>
+<td><code>AdminRecordsController.*</code></td>
+<td>Full-record CRUD and admin search/filter</td>
+</tr>
+<tr>
+<td><code>/Account/SignIn</code>, <code>/Account/SignOut</code></td>
+<td>Public/authenticated</td>
+<td>Microsoft Identity UI</td>
+<td>Starts or ends the primary login session</td>
+</tr>
+<tr>
+<td><code>/Experimental/*</code></td>
+<td>YubiKey MFA policy</td>
+<td>Razor Pages convention</td>
+<td>Reserved for second-factor protected pages</td>
+</tr>
+</tbody>
+</table>
+<h2 id="diagram-2-which-pages-interact-with-which-assets">Diagram 2 — which pages interact with which assets</h2>
+<p><img alt="Page to asset interactions" src="diagrams/page-asset-interactions.svg" /></p>
+<p>Key page-to-asset relationships:</p>
+<table>
+<thead>
+<tr>
+<th>Page</th>
+<th>Asset or external dependency</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Home</td>
+<td>ArcGIS iframe URL</td>
+<td>Chooses public, user, or admin map based on auth and admin-certificate result</td>
+</tr>
+<tr>
+<td>Home</td>
+<td>CRUD store</td>
+<td>Reads up to 50 public records</td>
+</tr>
+<tr>
+<td>Records pages</td>
+<td>CRUD store</td>
+<td>Reads or writes owner-scoped records</td>
+</tr>
+<tr>
+<td>Records/Admin views</td>
+<td>Inline JavaScript + static assets</td>
+<td>Client-side table filtering and layout</td>
+</tr>
+<tr>
+<td>Admin Records</td>
+<td>Client certificate + audit service</td>
+<td>Unlocks admin surface and records access attempts</td>
+</tr>
+<tr>
+<td>Sign-in UI</td>
+<td>OIDC provider</td>
+<td>Establishes the primary identity</td>
+</tr>
+<tr>
+<td><code>/Experimental/*</code></td>
+<td>YubiKey certificate + OCSP responder</td>
+<td>Enforces a second factor when the folder is used</td>
+</tr>
+<tr>
+<td>Every HTTPS request</td>
+<td>Azure Key Vault server certificate (optional feature)</td>
+<td>Supplies the TLS server identity to Kestrel</td>
+</tr>
+</tbody>
+</table>
+<h2 id="diagram-3-common-event-flows">Diagram 3 — common event flows</h2>
+<p><img alt="Common event flows" src="diagrams/common-event-flows.svg" /></p>
+<p>The most common user journeys are:</p>
+<ol>
+<li><strong>Browse public content</strong> → open the home page → see public records and the public ArcGIS map.</li>
+<li><strong>Sign in and upload</strong> → complete OIDC login → open My Records → upload a JSON file → write metadata and file bytes to the CRUD store.</li>
+<li><strong>Enter the admin surface</strong> → sign in → request <code>/AdminRecords</code> → pass <code>AdminCertificateRequirementHandler</code> → unlock full CRUD.</li>
+<li><strong>Enter a YubiKey-protected route</strong> → sign in → request <code>/Experimental/*</code> → pass YubiKey issuer, thumbprint, optional attestation, and OCSP checks.</li>
+</ol>
+<h2 id="diagram-4-role-activation-state-model">Diagram 4 — role activation state model</h2>
+<p><img alt="Role activation state model" src="diagrams/role-activation-state.svg" /></p>
+<p>This role model reflects what the current code actually activates:</p>
+<ul>
+<li><strong>Anonymous</strong> users only get public content.</li>
+<li><strong>Authenticated</strong> users unlock owner-scoped CRUD pages.</li>
+<li><strong>Site admins</strong> are a stricter state on top of authenticated users and require a mapped certificate.</li>
+<li><strong>YubiKey MFA users</strong> are another stricter state on top of authenticated users and are intended for <code>/Experimental/*</code>.</li>
+<li><strong>Group admin</strong> is a requested documentation concept, but there is no route, policy, or handler for it in the repository.</li>
+</ul>
+<h2 id="diagram-5-what-programs-and-functions-activate-during-key-interactions">Diagram 5 — what programs and functions activate during key interactions</h2>
+<p><img alt="Request and function activation" src="diagrams/request-function-activation.svg" /></p>
+<p>The main request paths activate these application components:</p>
+<table>
+<thead>
+<tr>
+<th>Interaction</th>
+<th>Main controller/function path</th>
+<th>Supporting services/functions</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Open home page</td>
+<td><code>HomeController.Index</code></td>
+<td><code>LoggingHelper.TrackFunctionCall</code>, <code>CrudDbContext.CrudRecords</code>, <code>IAuthorizationService.AuthorizeAsync</code>, <code>ArcGisSettings</code></td>
+</tr>
+<tr>
+<td>Upload record</td>
+<td><code>RecordsController.Create</code></td>
+<td><code>UploadPolicy</code>, <code>UserIdentityHelper</code>, <code>CrudDbContext.SaveChangesAsync</code></td>
+</tr>
+<tr>
+<td>Browse own records</td>
+<td><code>RecordsController.Index</code></td>
+<td><code>UserIdentityHelper.GetStableUserId</code>, <code>CrudDbContext</code></td>
+</tr>
+<tr>
+<td>Open admin pages</td>
+<td><code>AdminCertificateRequirementHandler</code> then <code>AdminRecordsController.*</code></td>
+<td><code>AdminCertificateAuditService</code>, <code>CrudDbContext</code></td>
+</tr>
+<tr>
+<td>Open YubiKey-protected route</td>
+<td><code>YubiKeyRequirementHandler</code></td>
+<td><code>OcspValidationService</code>, <code>YubiKeySettings</code>, TLS client certificate chain</td>
+</tr>
+<tr>
+<td>Client-side filtering</td>
+<td><code>Views/Records/Index.cshtml</code> and <code>Views/AdminRecords/Index.cshtml</code> inline scripts</td>
+<td>Bootstrap, jQuery, nonce-bearing script tags when CSP is enabled</td>
+</tr>
+</tbody>
+</table>
+<h2 id="diagram-6-certificate-authority-and-yubikey-workflow">Diagram 6 — certificate authority and YubiKey workflow</h2>
+<p><img alt="Certificate authority and YubiKey workflow" src="diagrams/ca-yubikey-certificate-flow.svg" /></p>
+<p>The certificate architecture splits into two major trust paths:</p>
+<h3 id="server-certificate-path">Server certificate path</h3>
+<ul>
+<li>The site can pull its <strong>server TLS certificate</strong> from <strong>Azure Key Vault</strong> at startup.</li>
+<li>Kestrel installs that server certificate for HTTPS.</li>
+<li>Every browser session depends on this server-side TLS identity.</li>
+</ul>
+<h3 id="privileged-client-certificate-path">Privileged client-certificate path</h3>
+<ul>
+<li><strong>Site admins</strong> present a client certificate that must come from an allowed issuer and map to the signed-in admin’s configured thumbprint.</li>
+<li><strong>YubiKey MFA users</strong> present a client certificate backed by a private key generated on YubiKey PIV hardware.</li>
+<li>The <strong>OpenBSD admin CA</strong> can sign YubiKey CSRs and operate the <strong>OCSP responder</strong> used during YubiKey validation.</li>
+<li>Revocation is especially important for the YubiKey flow because the app checks OCSP status during protected requests.</li>
+</ul>
+<h3 id="role-specific-certificate-expectations">Role-specific certificate expectations</h3>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Client certificate required</th>
+<th>Validation path</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Public</td>
+<td>No</td>
+<td>Server TLS only</td>
+</tr>
+<tr>
+<td>Authenticated user</td>
+<td>No</td>
+<td>OIDC login only</td>
+</tr>
+<tr>
+<td>Site admin</td>
+<td>Yes</td>
+<td><code>AdminCertificateSettings.AllowedIssuers</code> + mapped thumbprint</td>
+</tr>
+<tr>
+<td>YubiKey MFA user</td>
+<td>Yes</td>
+<td>Allowed CA issuer + optional CA thumbprint + optional attestation + OCSP</td>
+</tr>
+<tr>
+<td>Group admin</td>
+<td>No implementation</td>
+<td>No current validation path</td>
+</tr>
+</tbody>
+</table>
+<h2 id="diagram-7-how-tests-interact-with-the-site-and-when-they-run">Diagram 7 — how tests interact with the site and when they run</h2>
+<p><img alt="Test execution lifecycle" src="diagrams/test-execution-lifecycle.svg" /></p>
+<p>The current repository behavior is:</p>
+<ul>
+<li><code>dotnet build WebAppExperimental266.sln</code> compiles the application and test projects, but <strong>does not run tests</strong>.</li>
+<li><code>dotnet test WebAppExperimental266.Tests/WebAppExperimental266.Tests.csproj</code> compiles as needed, discovers xUnit tests, and then runs them.</li>
+<li>Integration tests use <code>WebApplicationFactory&lt;Program&gt;</code> and a temporary SQLite database so they can send real HTTP requests through the app pipeline.</li>
+</ul>
+<h3 id="test-coverage-map">Test coverage map</h3>
+<table>
+<thead>
+<tr>
+<th>Test area</th>
+<th>What it exercises</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Models tests</td>
+<td>Configuration objects, defaults, validation helpers</td>
+</tr>
+<tr>
+<td>Service tests</td>
+<td>Auth handlers, OCSP logic, nonce services, cloud wrapper services</td>
+</tr>
+<tr>
+<td>Extension tests</td>
+<td>mTLS registration and pipeline ordering</td>
+</tr>
+<tr>
+<td>Controller authorization tests</td>
+<td>Required authorization attributes and policy usage</td>
+</tr>
+<tr>
+<td>Integration tests</td>
+<td>Home/Privacy routes, service registration, security headers, app startup</td>
+</tr>
+<tr>
+<td>Security-focused tests</td>
+<td>mTLS, YubiKey, admin certificate, nonce, OCSP behavior</td>
+</tr>
+</tbody>
+</table>
+<h3 id="current-timing-answer">Current timing answer</h3>
+<p>The automated tests run <strong>during <code>dotnet test</code></strong>, not during a plain <code>dotnet build</code>. In the current validation run for this task, the repository passed <strong>362 tests</strong>.</p>
+<h2 id="operational-observations-and-gaps">Operational observations and gaps</h2>
+<ul>
+<li>The repository contains a strong certificate-driven admin and YubiKey story, but <strong>group-admin-specific flows are not yet implemented</strong>.</li>
+<li><code>/Experimental/*</code> is already reserved for YubiKey MFA, so future feature work can attach new Razor Pages there without redesigning the auth model.</li>
+<li>The home page is the clearest page-to-asset hub because it combines database reads, authorization-sensitive ArcGIS selection, and public downloads.</li>
+<li>The admin views and user views both ship inline filter scripts, so CSP/nonce behavior matters for these pages when nonce services are enabled.</li>
+</ul>
+<h2 id="files-most-relevant-to-these-diagrams">Files most relevant to these diagrams</h2>
+<ul>
+<li><code>WebAppExperimental266/Program.cs</code></li>
+<li><code>WebAppExperimental266/Controllers/HomeController.cs</code></li>
+<li><code>WebAppExperimental266/Controllers/RecordsController.cs</code></li>
+<li><code>WebAppExperimental266/Controllers/AdminRecordsController.cs</code></li>
+<li><code>WebAppExperimental266/Extensions/ServiceCollectionExtensions.cs</code></li>
+<li><code>WebAppExperimental266/Extensions/CrudAndAdminExtensions.cs</code></li>
+<li><code>WebAppExperimental266/Services/AdminCertificateRequirementHandler.cs</code></li>
+<li><code>WebAppExperimental266/Services/YubiKeyRequirementHandler.cs</code></li>
+<li><code>WebAppExperimental266/Services/CrudRecordAuthorizationHandler.cs</code></li>
+<li><code>WebAppExperimental266/Views/Shared/_Layout.cshtml</code></li>
+<li><code>WebAppExperimental266/Views/Home/Index.cshtml</code></li>
+<li><code>WebAppExperimental266/Views/Records/Index.cshtml</code></li>
+<li><code>WebAppExperimental266/Views/AdminRecords/Index.cshtml</code></li>
+<li><code>WebAppExperimental266.Tests/Integration/ApplicationIntegrationTests.cs</code></li>
+<li><code>WebAppExperimental266.Tests/Integration/MtlsIntegrationTests.cs</code></li>
+<li><code>docs/YUBIKEY_OPENBSD_ADMIN_GUIDE.md</code></li>
+</ul>
+    <div class="footer">Generated from <code>docs/en-US/SITE_FEATURES_ARCHITECTURE_GUIDE.md</code> for repository documentation.</div>
+  </div>
+</body>
+</html>

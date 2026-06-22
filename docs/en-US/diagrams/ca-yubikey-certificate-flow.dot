@@ -1,0 +1,44 @@
+digraph CertificateFlow {
+  graph [rankdir=LR, bgcolor="white", pad="0.35", nodesep="0.45", ranksep="0.75", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", color="#1f2937", penwidth=1.1, margin="0.12,0.08"];
+  edge [fontname="Helvetica", color="#475569", penwidth=1.1, arrowsize=0.75];
+
+  subgraph cluster_ca {
+    label="OpenBSD / Internal Certificate Administration";
+    color="#cbd5e1";
+    style="rounded";
+    CA [label="OpenBSD Admin CA\nissues trusted client certs", fillcolor="#ede9fe"];
+    OCSP [label="OpenBSD OCSP responder\nrevocation status for YubiKey flow", fillcolor="#ede9fe"];
+    Revoke [label="Revocation action\nremove user access", fillcolor="#fef3c7"];
+  }
+
+  subgraph cluster_server {
+    label="Server-side TLS";
+    color="#cbd5e1";
+    style="rounded";
+    KeyVault [label="Azure Key Vault\nserver PFX certificate", fillcolor="#dbeafe"];
+    Kestrel [label="Kestrel HTTPS listener\nAllowCertificate / RequireCertificate", fillcolor="#dbeafe"];
+  }
+
+  subgraph cluster_roles {
+    label="Role-specific client cert paths";
+    color="#cbd5e1";
+    style="rounded";
+    Public [label="Public / normal authenticated user\nno client cert required", fillcolor="#dcfce7"];
+    Admin [label="Site admin\nclient cert mapped in AdminCertificateSettings", fillcolor="#fee2e2"];
+    Yubi [label="YubiKey MFA user\nprivate key on YubiKey PIV hardware", fillcolor="#ede9fe"];
+    Group [label="Group admin\nnot implemented in current repo", style="rounded,dashed,filled", fillcolor="#f8fafc", color="#94a3b8", fontcolor="#64748b"];
+  }
+
+  KeyVault -> Kestrel [label="load server cert at startup"];
+  CA -> Admin [label="issue admin cert"];
+  CA -> Yubi [label="sign YubiKey CSR"];
+  Yubi -> Kestrel [label="TLS client certificate"];
+  Admin -> Kestrel [label="TLS client certificate"];
+  Public -> Kestrel [label="HTTPS only"];
+  Kestrel -> Admin [label="AdminCertificate policy\nissuer + thumbprint mapping"];
+  Kestrel -> Yubi [label="YubiKeyMfa policy\nissuer + thumbprint + attestation? + OCSP"];
+  OCSP -> Yubi [label="validate not revoked"];
+  Revoke -> OCSP [label="publish revoked status"];
+  Group -> Kestrel [style=dashed, color="#94a3b8", label="no group-specific cert path"];
+}

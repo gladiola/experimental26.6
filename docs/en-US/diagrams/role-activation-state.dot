@@ -1,0 +1,16 @@
+digraph RoleStates {
+  graph [rankdir=LR, bgcolor="white", pad="0.35", nodesep="0.6", ranksep="0.8", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", color="#1f2937", penwidth=1.15, margin="0.12,0.08"];
+  edge [fontname="Helvetica", color="#475569", penwidth=1.15, arrowsize=0.8];
+
+  Anonymous [label="Anonymous / Public\nActive: Home, Privacy, About,\npublic downloads, language switch", fillcolor="#dbeafe"];
+  User [label="Authenticated User\nActive: My Records, Upload,\nowner details/edit/delete, user ArcGIS map", fillcolor="#dcfce7"];
+  Admin [label="Site Admin (implemented)\nPrimary login + admin client cert\nActive: Admin Records, admin ArcGIS map, audit logging", fillcolor="#fee2e2"];
+  Yubi [label="YubiKey MFA User (implemented as policy)\nPrimary login + YubiKey PIV cert + OCSP\nActive: /Experimental/* if pages are added", fillcolor="#ede9fe"];
+  GroupAdmin [label="Group Admin\nRequested role but not implemented\nin current controllers/policies/routes", style="rounded,dashed,filled", fillcolor="#f8fafc", color="#94a3b8", fontcolor="#64748b"];
+
+  Anonymous -> User [label="OIDC sign-in"];
+  User -> Admin [label="present mapped admin cert"];
+  User -> Yubi [label="present trusted YubiKey cert"];
+  User -> GroupAdmin [style=dashed, color="#94a3b8", label="no route/policy exists"];
+}

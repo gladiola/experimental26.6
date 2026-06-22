@@ -39,6 +39,7 @@ This documentation is available in the following languages:
 
 ## Table of Contents
 
+- [Architecture & Flow Guide](#architecture--flow-guide)
 - [Features](#features)
 - [Feature Flags](#feature-flags)
 - [Prerequisites](#prerequisites)
@@ -47,6 +48,15 @@ This documentation is available in the following languages:
 - [Configuration Reference](#configuration-reference)
 - [Supporting Scripts](#supporting-scripts)
 - [Security Notes](#security-notes)
+
+---
+
+## Architecture & Flow Guide
+
+For a diagram-heavy overview of the live site structure, roles, page-to-asset relationships, common request flows, certificate handling, YubiKey login requirements, and test execution timing, see:
+
+- [Site Features, Roles, Flows, and Certificate Architecture Guide (Markdown)](SITE_FEATURES_ARCHITECTURE_GUIDE.md)
+- [Site Features, Roles, Flows, and Certificate Architecture Guide (PDF)](SITE_FEATURES_ARCHITECTURE_GUIDE.pdf)
 
 ---
 

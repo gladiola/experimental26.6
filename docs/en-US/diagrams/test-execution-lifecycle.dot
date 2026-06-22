@@ -1,0 +1,24 @@
+digraph TestLifecycle {
+  graph [rankdir=TB, bgcolor="white", pad="0.25", nodesep="0.45", ranksep="0.55", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", color="#1f2937", penwidth=1.1, margin="0.14,0.08"];
+  edge [fontname="Helvetica", color="#475569", penwidth=1.1, arrowsize=0.75];
+
+  Build [label="dotnet build WebAppExperimental266.sln", fillcolor="#dbeafe"];
+  Compile [label="Compile app + test projects", fillcolor="#dbeafe"];
+  NoRun [label="No tests execute during build", fillcolor="#fef3c7"];
+  Test [label="dotnet test WebAppExperimental266.Tests/WebAppExperimental266.Tests.csproj", fillcolor="#dcfce7"];
+  XUnit [label="xUnit test discovery + execution", fillcolor="#dcfce7"];
+  Unit [label="Unit tests\nmodels, services, auth handlers, middleware, cloud service wrappers", fillcolor="#dcfce7"];
+  Integration [label="Integration tests\nWebApplicationFactory + HTTP requests + temp SQLite", fillcolor="#dcfce7"];
+  Security [label="Security-focused tests\nnonce, OCSP, mTLS, YubiKey, cert auth", fillcolor="#ede9fe"];
+  Result [label="362 passing tests in current run", fillcolor="#bbf7d0"];
+
+  Build -> Compile -> NoRun;
+  Test -> XUnit;
+  XUnit -> Unit;
+  XUnit -> Integration;
+  XUnit -> Security;
+  Unit -> Result;
+  Integration -> Result;
+  Security -> Result;
+}

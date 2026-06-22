@@ -1,0 +1,30 @@
+digraph SiteStructure {
+  graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.55", ranksep="0.75", fontname="Helvetica"];
+  node [shape=box, style="rounded,filled", fontname="Helvetica", color="#1f2937", penwidth=1.2, margin="0.12,0.08"];
+  edge [fontname="Helvetica", color="#475569", penwidth=1.2, arrowsize=0.8];
+
+  Site [label="ProxDump Site", shape=box, fillcolor="#0f172a", fontcolor="white", color="#0f172a", penwidth=1.6];
+  PublicHome [label="Home /\nPublic Cards\n(HomeController.Index)\nArcGIS iframe + public downloads", fillcolor="#dbeafe"];
+  Privacy [label="Privacy\n(HomeController.Privacy)", fillcolor="#e0f2fe"];
+  About [label="About Us\n(HomeController.AboutUs)", fillcolor="#e0f2fe"];
+  Login [label="Sign In / Sign Out\n(Microsoft Identity UI)", fillcolor="#dcfce7"];
+  MyRecords [label="My Records\n(RecordsController.Index)\nsearch + filter + downloads", fillcolor="#dcfce7"];
+  Upload [label="Upload\n(RecordsController.Create)", fillcolor="#dcfce7"];
+  RecordOps [label="Details / Edit / Delete\nowner-scoped record actions", fillcolor="#dcfce7"];
+  AdminRecords [label="Admin Records\n(AdminRecordsController.*)\nall-records CRUD", fillcolor="#fee2e2"];
+  Experimental [label="/Experimental/* policy hook\nYubiKeyMfa-protected folder\n(no pages in current checkout)", fillcolor="#ede9fe"];
+  GroupAdmin [label="Group Admin role\nnot implemented in current repo", style="rounded,dashed,filled", fillcolor="#f8fafc", color="#94a3b8", fontcolor="#64748b"];
+  Language [label="Language switch\n(HomeController.SetLanguage)", fillcolor="#fef3c7"];
+
+  Site -> PublicHome;
+  Site -> Privacy;
+  Site -> About;
+  Site -> Login;
+  Site -> Language;
+  Login -> MyRecords [label="authenticated"];
+  MyRecords -> Upload;
+  MyRecords -> RecordOps;
+  Login -> AdminRecords [label="admin cert"];
+  Login -> Experimental [label="YubiKey MFA"];
+  Site -> GroupAdmin [style=dashed, color="#94a3b8"];
+}
