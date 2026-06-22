@@ -21,6 +21,23 @@
         </div>
     </div>
 
+    <div class="upload-card mb-4">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">
+            <div>
+                <h2 class="h5 mb-1">ArcGIS Plugin</h2>
+                <p class="text-muted mb-0">Interactive map experience available directly on the home page.</p>
+            </div>
+            <a class="btn btn-sm btn-outline-secondary" href="https://harvard-cga.maps.arcgis.com/apps/mapviewer/index.html" target="_blank" rel="noopener noreferrer">Open in new tab</a>
+        </div>
+        <iframe
+            class="arcgis-plugin-frame"
+            title="ArcGIS plugin"
+            src="https://harvard-cga.maps.arcgis.com/apps/mapviewer/index.html"
+            loading="lazy"
+            sandbox="allow-scripts allow-popups"
+            referrerpolicy="strict-origin-when-cross-origin"></iframe>
+    </div>
+
     <div class="upload-card">
         @if (!Model.Any())
         {
