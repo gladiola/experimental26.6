@@ -1,0 +1,15 @@
+{
+  "properties": {
+    "roleName": "CustomCosmosDBDataOwner",
+    "description": "Can read, write, update, and delete documents in Cosmos DB",
+    "assignableScopes": [ "/subscriptions/GUID" ],
+    "permissions": [
+      {
+        "actions": [ "Microsoft.DocumentDB/databaseAccounts/services/read", "Microsoft.DocumentDB/databaseAccounts/services/write", "Microsoft.DocumentDB/databaseAccounts/services/delete" ],
+        "notActions": [],
+        "dataActions": [],
+        "notDataActions": []
+      }
+    ]
+  }
+}

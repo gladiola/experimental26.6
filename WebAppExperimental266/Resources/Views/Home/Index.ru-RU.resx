@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="WelcomeHeading" xml:space="preserve">
+    <value>Добро пожаловать</value>
+  </data>
+  <data name="LearnAbout" xml:space="preserve">
+    <value>Узнайте, как создавать веб-приложения с помощью ASP.NET Core</value>
+  </data>
+</root>

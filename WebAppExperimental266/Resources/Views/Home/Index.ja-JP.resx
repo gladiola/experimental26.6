@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="WelcomeHeading" xml:space="preserve">
+    <value>ようこそ</value>
+  </data>
+  <data name="LearnAbout" xml:space="preserve">
+    <value>ASP.NET Core を使った Web アプリの構築を学ぶ</value>
+  </data>
+</root>

@@ -1,0 +1,236 @@
+﻿@inject IViewLocalizer Localizer
+<!DOCTYPE html>
+<html lang="@CultureInfo.CurrentUICulture.Name" dir="@(CultureInfo.CurrentUICulture.TextInfo.IsRightToLeft ? "rtl" : "ltr")">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - WebAppExperimental266</title>
+    <script type="importmap"></script>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/WebAppExperimental266.styles.css" asp-append-version="true" />
+</head>
+<body>
+    <header>
+        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
+            <div class="container-fluid">
+                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">WebAppExperimental266</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
+                        aria-expanded="false" aria-label="@Localizer["ToggleNavigation"]">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
+                    <ul class="navbar-nav flex-grow-1">
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">@Localizer["NavHome"]</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Privacy">@Localizer["NavPrivacy"]</a>
+                        </li>
+                    </ul>
+                    <ul class="navbar-nav">
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle text-dark" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                @Localizer["Language"]
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="en-US" />
+                                        <button type="submit" class="dropdown-item">English</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="de-DE" />
+                                        <button type="submit" class="dropdown-item">Deutsch</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="es-ES" />
+                                        <button type="submit" class="dropdown-item">Español</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="fr-FR" />
+                                        <button type="submit" class="dropdown-item">Français</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="pt-PT" />
+                                        <button type="submit" class="dropdown-item">Português</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="it-IT" />
+                                        <button type="submit" class="dropdown-item">Italiano</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="zh-HK" />
+                                        <button type="submit" class="dropdown-item">廣東話</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="ko-KR" />
+                                        <button type="submit" class="dropdown-item">한국어</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="hi-IN" />
+                                        <button type="submit" class="dropdown-item">हिन्दी</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="ru-RU" />
+                                        <button type="submit" class="dropdown-item">Русский</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="ar-SA" />
+                                        <button type="submit" class="dropdown-item">العربية</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="sw-KE" />
+                                        <button type="submit" class="dropdown-item">Kiswahili</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="ja-JP" />
+                                        <button type="submit" class="dropdown-item">日本語</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="ht-HT" />
+                                        <button type="submit" class="dropdown-item">Kreyòl ayisyen</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="haw-US" />
+                                        <button type="submit" class="dropdown-item">ʻŌlelo Hawaiʻi</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="sm-WS" />
+                                        <button type="submit" class="dropdown-item">Gagana Sāmoa</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="mi-NZ" />
+                                        <button type="submit" class="dropdown-item">Te Reo Māori</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="af-ZA" />
+                                        <button type="submit" class="dropdown-item">Afrikaans</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="nl-NL" />
+                                        <button type="submit" class="dropdown-item">Nederlands</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="ha-NG" />
+                                        <button type="submit" class="dropdown-item">Hausa</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="am-ET" />
+                                        <button type="submit" class="dropdown-item">አማርኛ</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="yo-NG" />
+                                        <button type="submit" class="dropdown-item">Yorùbá</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="bn-BD" />
+                                        <button type="submit" class="dropdown-item">বাংলা</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="zh-CN" />
+                                        <button type="submit" class="dropdown-item">普通话</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-controller="Home" asp-action="SetLanguage">
+                                        <input type="hidden" name="returnUrl" value="@Context.Request.Path" />
+                                        <input type="hidden" name="culture" value="ga-IE" />
+                                        <button type="submit" class="dropdown-item">Gaeilge</button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                    <partial name="_LoginPartial" />
+                </div>
+            </div>
+        </nav>
+    </header>
+    <div class="container">
+        <main role="main" class="pb-3">
+            @RenderBody()
+        </main>
+    </div>
+
+    <footer class="border-top footer text-muted">
+        <div class="container">
+            &copy; 2026 - WebAppExperimental266 - <a asp-area="" asp-controller="Home" asp-action="Privacy">@Localizer["FooterPrivacy"]</a>
+        </div>
+    </footer>
+    <script src="~/lib/jquery/dist/jquery.min.js" nonce="@Context.Items["Nonce"]"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js" nonce="@Context.Items["Nonce"]"></script>
+    <script src="~/js/site.js" asp-append-version="true" nonce="@Context.Items["Nonce"]"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

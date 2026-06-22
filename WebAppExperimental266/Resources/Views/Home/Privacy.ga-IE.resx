@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="PrivacyPolicyTitle" xml:space="preserve">
+    <value>Beartas Príobháideachta</value>
+  </data>
+  <data name="PrivacyPageBody" xml:space="preserve">
+    <value>Úsáid an leathanach seo chun beartas príobháideachta do shuíomh gréasáin a mhíniú.</value>
+  </data>
+</root>

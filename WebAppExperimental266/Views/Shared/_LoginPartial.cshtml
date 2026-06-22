@@ -1,0 +1,18 @@
+﻿@using System.Security.Principal
+@inject Microsoft.AspNetCore.Mvc.Localization.IViewLocalizer Localizer
+
+<ul class="navbar-nav">
+@if (User.Identity?.IsAuthenticated == true)
+{
+        <span class="navbar-text text-dark">@Localizer["Hello"] @User.Identity?.Name!</span>
+        <li class="nav-item">
+            <a class="nav-link text-dark" asp-area="MicrosoftIdentity" asp-controller="Account" asp-action="SignOut">@Localizer["SignOut"]</a>
+        </li>
+}
+else
+{
+        <li class="nav-item">
+            <a class="nav-link text-dark" asp-area="MicrosoftIdentity" asp-controller="Account" asp-action="SignIn">@Localizer["SignIn"]</a>
+        </li>
+}
+</ul>

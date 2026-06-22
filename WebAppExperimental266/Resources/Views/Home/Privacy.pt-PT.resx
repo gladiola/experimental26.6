@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="PrivacyPolicyTitle" xml:space="preserve">
+    <value>Política de Privacidade</value>
+  </data>
+  <data name="PrivacyPageBody" xml:space="preserve">
+    <value>Utilize esta página para descrever a política de privacidade do seu site.</value>
+  </data>
+</root>
