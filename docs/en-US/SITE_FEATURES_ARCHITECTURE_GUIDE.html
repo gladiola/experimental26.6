@@ -462,6 +462,174 @@
 </tr>
 </tbody>
 </table>
+<h2 id="feature-descriptions">Feature descriptions</h2>
+<p>The following sub-sections describe each major feature of the application as documented in the repository README.</p>
+<h3 id="azure-ad-authentication">Azure AD Authentication (OpenID Connect)</h3>
+<p>The application authenticates users through <strong>Microsoft Identity Platform</strong> using the OpenID Connect protocol (via <code>Microsoft.Identity.Web</code>). All routes under <code>/Experimental</code> require an authenticated Azure AD identity. The <code>/Privacy</code>, <code>/Error</code>, and <code>/About</code> pages are publicly accessible. The <code>[Authorize]</code> attribute on <code>HomeController</code> enforces authentication across all MVC actions.</p>
+<h3 id="mtls">Mutual TLS (mTLS) Client Certificate Authentication</h3>
+<p>When enabled, the application requires connecting clients to present a valid X.509 certificate. Settings in <code>MtlsSettings</code> control:</p>
+<ul>
+<li>Whether to allow chained certificates, self-signed certificates, or both</li>
+<li>Certificate revocation checking (X.509 CRL / online mode)</li>
+<li>Allowed certificate issuers (checked as a case-insensitive substring match against the certificate's <code>Issuer</code> DN)</li>
+</ul>
+<p>The Kestrel web server is configured with <code>ClientCertificateMode.RequireCertificate</code> when mTLS is on, and <code>ClientCertificateMode.AllowCertificate</code> in development or when mTLS is off.</p>
+<h3 id="azure-key-vault">Azure Key Vault Integration</h3>
+<p>The application retrieves the TLS <strong>server certificate</strong> from Azure Key Vault at startup. The Key Vault client uses Azure AD client credentials (client ID + client secret) from configuration. The loaded <code>X509Certificate2</code> is injected directly into Kestrel's HTTPS defaults so no PFX file needs to exist on disk.</p>
+<h3 id="ocsp">OCSP Certificate Revocation Validation</h3>
+<p>An <code>OcspValidationService</code> stub is included for validating client certificates against an OCSP (Online Certificate Status Protocol) server. The service supports configurable enable/disable, request timeout and retry count, in-memory caching of OCSP responses (configurable duration), and fail-closed, fail-open, or warn-only behavior when the OCSP server is unavailable.</p>
+<blockquote><p><strong>Note:</strong> The actual OCSP wire-protocol implementation (<code>PerformOcspValidationAsync</code>) is a stub that rejects all certificates until a production implementation is supplied.</p></blockquote>
+<h3 id="csp-nonce">Content Security Policy with Per-Request Nonces</h3>
+<p>When enabled, every HTTP response carries a <code>Content-Security-Policy</code> header whose <code>script-src</code> directive includes a <strong>cryptographically random nonce</strong> generated per request. The nonce is:</p>
+<ol>
+<li>Generated/refreshed by <code>NonceRefresherService</code> using AES-CBC encryption with a configurable 32-byte key and 16-byte IV stored in configuration (or User Secrets).</li>
+<li>Catalogued in a thread-safe <code>ConcurrentDictionary</code> by <code>NonceCatalogService</code>.</li>
+<li>Injected into every response by <code>NonceMiddleware</code> and placed in <code>HttpContext.Items["Nonce"]</code> so Razor views can embed it in <code>&lt;script&gt;</code> tags.</li>
+</ol>
+<p>The CSP also supports SHA-256 hash-based allow-listing of inline scripts via a flat text file (<code>wwwroot/csp-hashes.txt</code>) and an optional manually specified hash in configuration.</p>
+<h3 id="security-headers">Standard HTTP Security Headers</h3>
+<p><code>UseStandardSecurityHeaders</code> appends the following headers to every response:</p>
+<ul>
+<li><code>X-Frame-Options: DENY</code></li>
+<li><code>X-Content-Type-Options: nosniff</code></li>
+<li><code>Strict-Transport-Security: max-age=31536000; includeSubDomains</code></li>
+<li><code>Referrer-Policy: strict-origin-when-cross-origin</code></li>
+<li><code>Cross-Origin-Opener-Policy: same-origin</code></li>
+<li><code>Cross-Origin-Resource-Policy: same-site</code></li>
+<li><code>Permissions-Policy</code> disabling geolocation, camera, microphone, and FLoC (<code>interest-cohort</code>)</li>
+<li>Removal of <code>Server</code>, <code>X-Powered-By</code>, and <code>X-AspNetMvc-Version</code> response headers</li>
+<li><code>Cache-Control: no-cache, no-store, must-revalidate</code></li>
+</ul>
+<h3 id="blob-storage">Azure Blob Storage</h3>
+<p>When enabled, <code>BlobSettingsService</code> provides a scoped service backed by a connection string and a configurable maximum attachment count. The connection string is expected to be stored in User Secrets or Azure Key Vault, never in source control.</p>
+<h3 id="cosmos-db">Azure Cosmos DB</h3>
+<p>When enabled, the application verifies the Cosmos DB connection at startup by calling <code>database.ReadAsync()</code>. <code>CosmosDbService</code> wraps a <code>CosmosClient</code> singleton and is bound to a configurable database and container. The connection string and account key are secrets stored outside source control.</p>
+<h3 id="aws-secrets">AWS Secrets Manager</h3>
+<p>When enabled, <code>AwsSecretsManagerOperationsService</code> provides a template stub for fetching secrets and TLS certificates from <strong>AWS Secrets Manager</strong>. AWS credentials (<code>AccessKeyId</code>, <code>SecretAccessKey</code>) must be stored in User Secrets or environment variables — never in source control.</p>
+<h3 id="dynamodb">Amazon DynamoDB</h3>
+<p>When enabled, <code>AwsDynamoDbService</code> wraps an <code>IAmazonDynamoDB</code> client singleton. At startup the service verifies connectivity by calling <code>DescribeTable</code>. AWS credentials must be stored outside source control.</p>
+<h3 id="gcp-secret">Google Cloud Secret Manager</h3>
+<p>When enabled, <code>GcpSecretManagerOperationsService</code> provides a template stub for fetching secrets and TLS certificates from <strong>Google Cloud Secret Manager</strong>. Authentication uses <strong>Application Default Credentials (ADC)</strong> by default; a service-account JSON key file path can optionally be supplied via <code>GcpSecretManager:CredentialFilePath</code>.</p>
+<h3 id="firestore">Google Cloud Firestore</h3>
+<p>When enabled, <code>GcpFirestoreService</code> wraps a <code>FirestoreDb</code> singleton. At startup the application builds a Firestore client bound to the configured project ID and collection name. Authentication uses ADC or a service-account JSON key file.</p>
+<h3 id="aws-cognito">AWS Cognito Identity Management</h3>
+<p>When enabled, <code>AddAwsCognitoAuthentication</code> configures OpenID Connect authentication against an <strong>AWS Cognito User Pool</strong>. Configuration is under the <code>AwsCognito</code> section: <code>Region</code>, <code>UserPoolId</code>, <code>AppClientId</code>, <code>AppClientSecret</code> (store in User Secrets), and <code>Domain</code>. The callback path defaults to <code>/signin-aws-cognito</code>.</p>
+<h3 id="gcp-identity">GCP Identity Platform</h3>
+<p>When enabled, <code>AddGcpIdentityAuthentication</code> configures OpenID Connect authentication using <strong>Google's OAuth 2.0 / OpenID Connect</strong> endpoint. Configuration is under the <code>GcpIdentity</code> section: <code>ClientId</code>, <code>ClientSecret</code> (store in User Secrets), and optional <code>ProjectId</code>. The callback path defaults to <code>/signin-gcp</code>.</p>
+<h3 id="session">Secure Session Management</h3>
+<p>Sessions use in-process distributed memory cache with a <strong>30-minute idle timeout</strong>. Session cookies are configured as <code>HttpOnly = true</code>, <code>Secure = Always</code> (HTTPS-only), and <code>SameSite = Strict</code>.</p>
+<h3 id="localization">Localization</h3>
+<p>The application supports <strong>25 languages</strong> with per-view <code>.resx</code> resource files. The active culture is determined at the request pipeline level via <code>RequestLocalizationOptions</code> (Accept-Language header, query string, or cookie). Users can switch language at any time using the language picker in the navigation bar. Right-to-left (RTL) layout is activated automatically when Arabic is selected.</p>
+<table>
+<thead><tr><th>Culture Tag</th><th>Language</th></tr></thead>
+<tbody>
+<tr><td><code>en-US</code></td><td>English (United States) — default</td></tr>
+<tr><td><code>de-DE</code></td><td>Deutsch (German)</td></tr>
+<tr><td><code>es-ES</code></td><td>Español (Spanish)</td></tr>
+<tr><td><code>fr-FR</code></td><td>Français (French)</td></tr>
+<tr><td><code>pt-PT</code></td><td>Português (Portuguese)</td></tr>
+<tr><td><code>it-IT</code></td><td>Italiano (Italian)</td></tr>
+<tr><td><code>zh-HK</code></td><td>廣東話 (Cantonese — Hong Kong Traditional Chinese)</td></tr>
+<tr><td><code>ko-KR</code></td><td>한국어 (Korean)</td></tr>
+<tr><td><code>hi-IN</code></td><td>हिन्दी (Hindi)</td></tr>
+<tr><td><code>ru-RU</code></td><td>Русский (Russian)</td></tr>
+<tr><td><code>ar-SA</code></td><td>العربية (Arabic — right-to-left layout)</td></tr>
+<tr><td><code>sw-KE</code></td><td>Kiswahili (Swahili)</td></tr>
+<tr><td><code>ja-JP</code></td><td>日本語 (Japanese)</td></tr>
+<tr><td><code>ht-HT</code></td><td>Kreyòl ayisyen (Haitian Creole)</td></tr>
+<tr><td><code>haw-US</code></td><td>ʻŌlelo Hawaiʻi (Hawaiian)</td></tr>
+<tr><td><code>sm-WS</code></td><td>Gagana Samoa (Samoan)</td></tr>
+<tr><td><code>mi-NZ</code></td><td>Te Reo Māori (Māori)</td></tr>
+<tr><td><code>af-ZA</code></td><td>Afrikaans</td></tr>
+<tr><td><code>nl-NL</code></td><td>Nederlands (Dutch)</td></tr>
+<tr><td><code>ha-NG</code></td><td>Hausa</td></tr>
+<tr><td><code>am-ET</code></td><td>አማርኛ (Amharic)</td></tr>
+<tr><td><code>yo-NG</code></td><td>Yorùbá (Yoruba)</td></tr>
+<tr><td><code>bn-BD</code></td><td>বাংলা (Bengali)</td></tr>
+<tr><td><code>zh-CN</code></td><td>普通话 (Mandarin Chinese — Simplified)</td></tr>
+<tr><td><code>ga-IE</code></td><td>Gaeilge (Irish)</td></tr>
+</tbody>
+</table>
+<h3 id="pii-logging">PII-Safe Logging</h3>
+<p><code>LoggingHelper</code> hashes personally identifiable information in log output using HMAC-SHA256. A stable 32-byte key can be supplied via <code>Logging:PiiHmacKey</code> (stored in User Secrets). If the key is absent or invalid, a random key is generated at startup so PII is never logged in plaintext.</p>
+<h2 id="feature-flags">Feature flags</h2>
+<p>All major subsystems are controlled by boolean feature flags in <code>appsettings.json</code>. Each flag defaults to a safe state.</p>
+<table>
+<thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>EnableSession</code></td><td><code>true</code></td><td>Server-side session and session cookie</td></tr>
+<tr><td><code>EnableLocalization</code></td><td><code>true</code></td><td>Multi-language support (25 languages)</td></tr>
+<tr><td><code>EnableAzureAd</code></td><td><code>true</code></td><td>Azure AD / OpenID Connect authentication</td></tr>
+<tr><td><code>EnableAuthorization</code></td><td><code>true</code></td><td>Route-level authorization policies</td></tr>
+<tr><td><code>EnableKeyVault</code></td><td><code>false</code></td><td>Load TLS server cert from Azure Key Vault</td></tr>
+<tr><td><code>EnableNonceServices</code></td><td><code>false</code></td><td>Per-request CSP nonce generation</td></tr>
+<tr><td><code>EnableCSP</code></td><td><code>false</code></td><td>Attach <code>Content-Security-Policy</code> header</td></tr>
+<tr><td><code>EnableSecurityHeaders</code></td><td><code>true</code></td><td>Attach standard HTTP security headers</td></tr>
+<tr><td><code>EnableBlobStorage</code></td><td><code>false</code></td><td>Azure Blob Storage service</td></tr>
+<tr><td><code>EnableCosmosDb</code></td><td><code>false</code></td><td>Azure Cosmos DB service</td></tr>
+<tr><td><code>EnableMtls</code></td><td><code>false</code></td><td>Require client TLS certificates</td></tr>
+<tr><td><code>EnableOcspValidation</code></td><td><code>false</code></td><td>OCSP certificate revocation check (stub)</td></tr>
+<tr><td><code>EnableAwsSecretsManager</code></td><td><code>false</code></td><td>AWS Secrets Manager service (stub)</td></tr>
+<tr><td><code>EnableAwsDynamoDb</code></td><td><code>false</code></td><td>Amazon DynamoDB service</td></tr>
+<tr><td><code>EnableAwsCognito</code></td><td><code>false</code></td><td>AWS Cognito OpenID Connect identity management</td></tr>
+<tr><td><code>EnableGcpSecretManager</code></td><td><code>false</code></td><td>GCP Secret Manager service (stub)</td></tr>
+<tr><td><code>EnableGcpFirestore</code></td><td><code>false</code></td><td>Google Cloud Firestore service</td></tr>
+<tr><td><code>EnableGcpIdentity</code></td><td><code>false</code></td><td>GCP Identity Platform (Google OAuth 2.0 / OIDC)</td></tr>
+<tr><td><code>EnableYubiKeyRequired</code></td><td><code>false</code></td><td>YubiKey PIV MFA enforcement on <code>/Experimental/*</code></td></tr>
+</tbody>
+</table>
+<h2 id="configuration-reference">Configuration reference</h2>
+<p>Copy <code>appsettings.template.json</code> to <code>appsettings.json</code> and replace all <code>{{PLACEHOLDER}}</code> values. Secrets must not be stored in source control — set them as App Service Application Settings, environment variables, or via .NET User Secrets locally.</p>
+<table>
+<thead><tr><th>Section</th><th>Key</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>AzureAd</code></td><td><code>TenantId</code>, <code>ClientId</code>, <code>ClientSecret</code></td><td>Azure AD app registration</td></tr>
+<tr><td><code>AzureKeyVault</code></td><td><code>KeyVaultURL</code>, <code>KeyVaultSecret</code>, <code>KeyVaultPassName</code></td><td>Key Vault and certificate name</td></tr>
+<tr><td><code>MtlsSettings</code></td><td><code>RequireClientCertificate</code>, <code>AllowedIssuers</code></td><td>mTLS client cert policy</td></tr>
+<tr><td><code>NonceEncryption</code></td><td><code>Key</code>, <code>IV</code></td><td>32-byte key and 16-byte IV for nonce encryption (base64)</td></tr>
+<tr><td><code>BlobSettings</code></td><td><code>BlobConnectionString</code>, <code>MaxAttachments</code></td><td>Blob Storage connection</td></tr>
+<tr><td><code>CosmosDb</code></td><td><code>CosmosConnectionString</code>, <code>DatabaseName</code>, <code>ContainerName</code></td><td>Cosmos DB connection</td></tr>
+<tr><td><code>OcspSettings</code></td><td><code>OcspServerUrl</code>, <code>CacheDurationMinutes</code></td><td>OCSP validation (stub)</td></tr>
+<tr><td><code>Logging</code></td><td><code>PiiHmacKey</code></td><td>32-byte base64 HMAC key for PII hashing in logs</td></tr>
+<tr><td><code>YubiKeySettings</code></td><td><code>AllowedIssuers</code>, <code>AllowedThumbprints</code>, <code>RequireAttestation</code></td><td>YubiKey PIV MFA policy</td></tr>
+<tr><td><code>AdminCertificateSettings</code></td><td><code>AllowedIssuers</code>, <code>AdminUsers[*].UserIdentifiers</code>, <code>AdminUsers[*].AllowedThumbprints</code></td><td>Admin client certificate policy</td></tr>
+<tr><td><code>GroupAccessSettings</code></td><td><code>Groups[*].GroupName</code>, <code>Groups[*].Users[*]</code></td><td>Group admin certificate mapping</td></tr>
+<tr><td><code>AwsSecretsManager</code></td><td><code>Region</code>, <code>CertificateSecretName</code>, <code>AccessKeyId</code>, <code>SecretAccessKey</code></td><td>AWS Secrets Manager (stub)</td></tr>
+<tr><td><code>AwsDynamoDb</code></td><td><code>Region</code>, <code>TableName</code>, <code>AccessKeyId</code>, <code>SecretAccessKey</code></td><td>Amazon DynamoDB</td></tr>
+<tr><td><code>AwsCognito</code></td><td><code>Region</code>, <code>UserPoolId</code>, <code>AppClientId</code>, <code>AppClientSecret</code>, <code>Domain</code></td><td>AWS Cognito OIDC identity</td></tr>
+<tr><td><code>GcpSecretManager</code></td><td><code>ProjectId</code>, <code>CertificateSecretId</code>, <code>CredentialFilePath</code></td><td>GCP Secret Manager (stub)</td></tr>
+<tr><td><code>GcpFirestore</code></td><td><code>ProjectId</code>, <code>DatabaseId</code>, <code>CollectionName</code>, <code>CredentialFilePath</code></td><td>Google Cloud Firestore</td></tr>
+<tr><td><code>GcpIdentity</code></td><td><code>ClientId</code>, <code>ClientSecret</code>, <code>ProjectId</code>, <code>CallbackPath</code></td><td>GCP Identity Platform (Google OAuth 2.0 / OIDC)</td></tr>
+</tbody>
+</table>
+<h2 id="supporting-scripts">Supporting scripts</h2>
+<p>The <code>SupportingScripts/</code> directory contains PowerShell utilities:</p>
+<table>
+<thead><tr><th>Script</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>IVandKeySampleGenerator.ps1</code></td><td>Generate a random 32-byte AES key and 16-byte IV (base64)</td></tr>
+<tr><td><code>HashInlineScriptPowerShell.ps1</code></td><td>Compute SHA-256 hashes for inline scripts (for CSP allow-listing)</td></tr>
+<tr><td><code>HashInlineScriptPowerShellBase64Output.ps1</code></td><td>Same as above, outputs hashes in base64 format</td></tr>
+<tr><td><code>CertificateUploaderToAzureExample.ps1</code></td><td>Upload a PFX certificate to Azure Key Vault</td></tr>
+<tr><td><code>CheckRoles.ps1</code></td><td>Verify Azure RBAC role assignments for the app</td></tr>
+<tr><td><code>ExportResourceGroups.ps1</code></td><td>Export Azure resource group configurations</td></tr>
+<tr><td><code>TroubleshootingCosmosDBInfo.ps1</code></td><td>Diagnose Cosmos DB connectivity</td></tr>
+<tr><td><code>SetupFromTemplate.ps1</code></td><td>Automate initial configuration from <code>appsettings.template.json</code></td></tr>
+</tbody>
+</table>
+<h2 id="security-notes">Security notes</h2>
+<ul>
+<li><strong>Never commit secrets</strong> (<code>ClientSecret</code>, <code>KeyVaultSecret</code>, connection strings, encryption keys, AWS/GCP credentials) to source control. Use .NET User Secrets locally and Azure App Settings / Key Vault references in production.</li>
+<li>The OCSP validation implementation is a <strong>stub</strong> that rejects all certificates. Replace <code>PerformOcspValidationAsync</code> in <code>OcspValidationService.cs</code> before enabling <code>EnableOcspValidation</code> in production.</li>
+<li>The AWS Secrets Manager and GCP Secret Manager implementations are <strong>stubs</strong> that log a warning and return empty values. Replace the method bodies in <code>AwsSecretManagerOperations</code> and <code>GcpSecretManagerOperations</code> before enabling those features in production.</li>
+<li>Nonce values are <strong>never logged</strong> — logging a nonce in plaintext would allow an attacker with log access to inject arbitrary inline scripts.</li>
+<li>The <code>Server</code> response header is masked to <code>webserver</code> to avoid exposing platform information.</li>
+<li>Review <code>AllowSelfSignedCertificates = false</code> (default) before deploying mTLS; self-signed certificates should only be used in development.</li>
+<li>AWS <code>AccessKeyId</code> and <code>SecretAccessKey</code> must <strong>never</strong> appear in <code>appsettings.json</code> — use User Secrets, environment variables, or IAM instance roles.</li>
+<li>For <strong>AWS Cognito</strong>, prefer IAM roles or Cognito Identity Pools over static credentials; never commit <code>AppClientSecret</code> to source control.</li>
+<li>GCP credentials should use <strong>Application Default Credentials (ADC)</strong> rather than committing service-account JSON files.</li>
+<li>For <strong>GCP Identity</strong>, the <code>ClientSecret</code> must be stored in User Secrets or environment variables — never in <code>appsettings.json</code>.</li>
+</ul>
 <h2 id="files-most-relevant-to-these-diagrams">Files most relevant to these diagrams</h2>
 <ul>
 <li><code>WebAppExperimental266/Program.cs</code></li>

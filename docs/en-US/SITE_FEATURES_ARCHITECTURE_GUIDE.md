@@ -182,6 +182,207 @@ The automated tests run **during `dotnet test`**, not during a plain `dotnet bui
 | External resource use | Feature-flagged integrations for Azure Key Vault/Cosmos/Blob, AWS Secrets Manager/DynamoDB/Cognito, and GCP Secret Manager/Firestore/Identity with explicit startup wiring | **CM-7** (Least functionality), **SA-9** (External system services), **SC-7** (Boundary protection), **SR-3** (Supply chain controls) |
 | MFA (YubiKey) | `YubiKeyMfa` policy enforces second factor via client cert checks, issuer/thumbprint constraints, optional attestation checks, and OCSP revocation validation | **IA-2(1)/(2)** (Multi-factor authentication), **IA-5** (Authenticator management), **SC-17** (PKI certificates), **SI-4** (System monitoring through revocation/status checks) |
 
+## Feature descriptions
+
+The following sub-sections describe each major feature of the application as documented in the repository README.
+
+### Azure AD Authentication (OpenID Connect)
+The application authenticates users through **Microsoft Identity Platform** using the OpenID Connect protocol (via `Microsoft.Identity.Web`). All routes under `/Experimental` require an authenticated Azure AD identity. The `/Privacy`, `/Error`, and `/About` pages are publicly accessible. The `[Authorize]` attribute on `HomeController` enforces authentication across all MVC actions.
+
+### Mutual TLS (mTLS) Client Certificate Authentication
+When enabled, the application requires connecting clients to present a valid X.509 certificate. Settings in `MtlsSettings` control:
+- Whether to allow chained certificates, self-signed certificates, or both
+- Certificate revocation checking (X.509 CRL / online mode)
+- Allowed certificate issuers (checked as a case-insensitive substring match against the certificate's `Issuer` DN)
+
+The Kestrel web server is configured with `ClientCertificateMode.RequireCertificate` when mTLS is on, and `ClientCertificateMode.AllowCertificate` in development or when mTLS is off.
+
+### Azure Key Vault Integration
+The application retrieves the TLS **server certificate** from Azure Key Vault at startup. The Key Vault client uses Azure AD client credentials (client ID + client secret) from configuration. The loaded `X509Certificate2` is injected directly into Kestrel's HTTPS defaults so no PFX file needs to exist on disk.
+
+### OCSP Certificate Revocation Validation
+An `OcspValidationService` stub is included for validating client certificates against an OCSP (Online Certificate Status Protocol) server. The service supports configurable:
+- Enable/disable per environment
+- Request timeout and retry count
+- In-memory caching of OCSP responses (configurable duration)
+- Fail-closed, fail-open, or warn-only behavior when the OCSP server is unavailable
+
+> **Note:** The actual OCSP wire-protocol implementation (`PerformOcspValidationAsync`) is a stub that rejects all certificates until a production implementation is supplied.
+
+### Content Security Policy with Per-Request Nonces
+When enabled, every HTTP response carries a `Content-Security-Policy` header whose `script-src` directive includes a **cryptographically random nonce** generated per request. The nonce is:
+1. Generated/refreshed by `NonceRefresherService` using AES-CBC encryption with a configurable 32-byte key and 16-byte IV stored in configuration (or User Secrets).
+2. Catalogued in a thread-safe `ConcurrentDictionary` by `NonceCatalogService`.
+3. Injected into every response by `NonceMiddleware` and placed in `HttpContext.Items["Nonce"]` so Razor views can embed it in `<script>` tags.
+
+The CSP also supports SHA-256 hash-based allow-listing of inline scripts via a flat text file (`wwwroot/csp-hashes.txt`) and an optional manually specified hash in configuration.
+
+### Standard HTTP Security Headers
+`UseStandardSecurityHeaders` appends the following headers to every response:
+- `X-Frame-Options: DENY`
+- `X-Content-Type-Options: nosniff`
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Resource-Policy: same-site`
+- `Permissions-Policy` disabling geolocation, camera, microphone, and FLoC (`interest-cohort`)
+- Removal of `Server`, `X-Powered-By`, and `X-AspNetMvc-Version` response headers
+- `Cache-Control: no-cache, no-store, must-revalidate`
+
+### Azure Blob Storage
+When enabled, `BlobSettingsService` provides a scoped service backed by a connection string and a configurable maximum attachment count. The connection string is expected to be stored in User Secrets or Azure Key Vault, never in source control.
+
+### Azure Cosmos DB
+When enabled, the application verifies the Cosmos DB connection at startup by calling `database.ReadAsync()`. `CosmosDbService` wraps a `CosmosClient` singleton and is bound to a configurable database and container. The connection string and account key are secrets stored outside source control.
+
+### AWS Secrets Manager
+When enabled, `AwsSecretsManagerOperationsService` provides a template stub for fetching secrets and TLS certificates from **AWS Secrets Manager** (the AWS equivalent of Azure Key Vault). It mirrors the interface of `AzureKeyVaultOperationsService`:
+- `FetchSecret(secretName)` — retrieve any named secret by ARN or name.
+- `FetchCertificate()` — retrieve the PFX server certificate.
+- `FetchSecretIVSecret()` / `FetchSecretNonceKeySecret()` — retrieve nonce encryption material.
+
+The underlying `AwsSecretManagerOperations` class logs a warning and returns empty values until a production implementation is supplied. AWS credentials (`AccessKeyId`, `SecretAccessKey`) must be stored in User Secrets or environment variables — never in source control.
+
+### Amazon DynamoDB
+When enabled, `AwsDynamoDbService` wraps an `IAmazonDynamoDB` client singleton (the AWS equivalent of Azure Cosmos DB). At startup the service verifies connectivity by calling `DescribeTable`. The service exposes `GetTableAsync()` and `GetTableName()` for downstream use. AWS credentials must be stored outside source control.
+
+### Google Cloud Secret Manager
+When enabled, `GcpSecretManagerOperationsService` provides a template stub for fetching secrets and TLS certificates from **Google Cloud Secret Manager** (the GCP equivalent of Azure Key Vault). It mirrors the interface of `AzureKeyVaultOperationsService`:
+- `FetchSecret(secretId)` — retrieve any named secret by ID.
+- `FetchCertificate()` — retrieve the PFX server certificate.
+- `FetchSecretIVSecret()` / `FetchSecretNonceKeySecret()` — retrieve nonce encryption material.
+
+The underlying `GcpSecretManagerOperations` class logs a warning and returns empty values until a production implementation is supplied. Authentication uses **Application Default Credentials (ADC)** by default; a service-account JSON key file path can optionally be supplied via `GcpSecretManager:CredentialFilePath`.
+
+### Google Cloud Firestore
+When enabled, `GcpFirestoreService` wraps a `FirestoreDb` singleton (the GCP equivalent of Azure Cosmos DB). At startup the application builds a Firestore client bound to the configured project ID and collection name. The service exposes `GetCollection()`, `GetCollectionName()`, and `GetDatabase()` for downstream use. Authentication uses ADC or a service-account JSON key file.
+
+### AWS Cognito Identity Management
+When enabled, `AddAwsCognitoAuthentication` configures OpenID Connect authentication against an **AWS Cognito User Pool** — the AWS equivalent of Microsoft Entra ID / Azure AD. The middleware consumes Cognito's standards-compliant OIDC discovery endpoint (`https://cognito-idp.{Region}.amazonaws.com/{UserPoolId}/.well-known/openid-configuration`). Configuration is under the `AwsCognito` section: `Region`, `UserPoolId`, `AppClientId`, `AppClientSecret` (store in User Secrets), and `Domain` (the Cognito hosted-UI domain). The callback path defaults to `/signin-aws-cognito`.
+
+### GCP Identity Platform
+When enabled, `AddGcpIdentityAuthentication` configures OpenID Connect authentication using **Google's OAuth 2.0 / OpenID Connect** endpoint — the GCP equivalent of Microsoft Entra ID / Azure AD. The middleware consumes Google's standard OIDC discovery endpoint (`https://accounts.google.com/.well-known/openid-configuration`). Configuration is under the `GcpIdentity` section: `ClientId`, `ClientSecret` (store in User Secrets), and optional `ProjectId` for logging. The callback path defaults to `/signin-gcp`.
+
+### Secure Session Management
+Sessions use in-process distributed memory cache with a **30-minute idle timeout**. Session cookies are configured as:
+- `HttpOnly = true`
+- `Secure = Always` (HTTPS-only)
+- `SameSite = Strict`
+
+### Localization
+The application supports **25 languages** with per-view `.resx` resource files. The active culture is determined at the request pipeline level via `RequestLocalizationOptions` (Accept-Language header, query string, or cookie). Users can switch language at any time using the language picker in the navigation bar.
+
+| Culture Tag | Language |
+|---|---|
+| `en-US` | English (United States) — default |
+| `de-DE` | Deutsch (German) |
+| `es-ES` | Español (Spanish) |
+| `fr-FR` | Français (French) |
+| `pt-PT` | Português (Portuguese) |
+| `it-IT` | Italiano (Italian) |
+| `zh-HK` | 廣東話 (Cantonese — Hong Kong Traditional Chinese) |
+| `ko-KR` | 한국어 (Korean) |
+| `hi-IN` | हिन्दी (Hindi) |
+| `ru-RU` | Русский (Russian) |
+| `ar-SA` | العربية (Arabic — right-to-left layout) |
+| `sw-KE` | Kiswahili (Swahili) |
+| `ja-JP` | 日本語 (Japanese) |
+| `ht-HT` | Kreyòl ayisyen (Haitian Creole) |
+| `haw-US` | ʻŌlelo Hawaiʻi (Hawaiian) |
+| `sm-WS` | Gagana Samoa (Samoan) |
+| `mi-NZ` | Te Reo Māori (Māori) |
+| `af-ZA` | Afrikaans |
+| `nl-NL` | Nederlands (Dutch) |
+| `ha-NG` | Hausa |
+| `am-ET` | አማርኛ (Amharic) |
+| `yo-NG` | Yorùbá (Yoruba) |
+| `bn-BD` | বাংলা (Bengali) |
+| `zh-CN` | 普通话 (Mandarin Chinese — Simplified) |
+| `ga-IE` | Gaeilge (Irish) |
+
+Right-to-left (RTL) layout is activated automatically when Arabic is selected.
+
+### PII-Safe Logging
+`LoggingHelper` hashes personally identifiable information in log output using HMAC-SHA256. A stable 32-byte key can be supplied via `Logging:PiiHmacKey` (stored in User Secrets). If the key is absent or invalid, a random key is generated at startup so PII is never logged in plaintext.
+
+## Feature flags
+
+All major subsystems are controlled by boolean feature flags in `appsettings.json`. Each flag defaults to a safe state.
+
+| Flag | Default | Description |
+|---|---|---|
+| `EnableSession` | `true` | Server-side session and session cookie |
+| `EnableLocalization` | `true` | Multi-language support (25 languages) |
+| `EnableAzureAd` | `true` | Azure AD / OpenID Connect authentication |
+| `EnableAuthorization` | `true` | Route-level authorization policies |
+| `EnableKeyVault` | `false` | Load TLS server cert from Azure Key Vault |
+| `EnableNonceServices` | `false` | Per-request CSP nonce generation |
+| `EnableCSP` | `false` | Attach `Content-Security-Policy` header |
+| `EnableSecurityHeaders` | `true` | Attach standard HTTP security headers |
+| `EnableBlobStorage` | `false` | Azure Blob Storage service |
+| `EnableCosmosDb` | `false` | Azure Cosmos DB service |
+| `EnableMtls` | `false` | Require client TLS certificates |
+| `EnableOcspValidation` | `false` | OCSP certificate revocation check (stub) |
+| `EnableAwsSecretsManager` | `false` | AWS Secrets Manager service (stub) |
+| `EnableAwsDynamoDb` | `false` | Amazon DynamoDB service |
+| `EnableAwsCognito` | `false` | AWS Cognito OpenID Connect identity management |
+| `EnableGcpSecretManager` | `false` | GCP Secret Manager service (stub) |
+| `EnableGcpFirestore` | `false` | Google Cloud Firestore service |
+| `EnableGcpIdentity` | `false` | GCP Identity Platform (Google OAuth 2.0 / OIDC) |
+| `EnableYubiKeyRequired` | `false` | YubiKey PIV MFA enforcement on `/Experimental/*` |
+
+## Configuration reference
+
+Copy `appsettings.template.json` to `appsettings.json` and replace all `{{PLACEHOLDER}}` values. Secrets must not be stored in source control — set them as App Service Application Settings, environment variables, or via .NET User Secrets locally.
+
+| Section | Key | Description |
+|---|---|---|
+| `AzureAd` | `TenantId`, `ClientId`, `ClientSecret` | Azure AD app registration |
+| `AzureKeyVault` | `KeyVaultURL`, `KeyVaultSecret`, `KeyVaultPassName` | Key Vault and certificate name |
+| `MtlsSettings` | `RequireClientCertificate`, `AllowedIssuers` | mTLS client cert policy |
+| `NonceEncryption` | `Key`, `IV` | 32-byte key and 16-byte IV for nonce encryption (base64) |
+| `BlobSettings` | `BlobConnectionString`, `MaxAttachments` | Blob Storage connection |
+| `CosmosDb` | `CosmosConnectionString`, `DatabaseName`, `ContainerName` | Cosmos DB connection |
+| `OcspSettings` | `OcspServerUrl`, `CacheDurationMinutes` | OCSP validation (stub) |
+| `Logging` | `PiiHmacKey` | 32-byte base64 HMAC key for PII hashing in logs |
+| `YubiKeySettings` | `AllowedIssuers`, `AllowedThumbprints`, `RequireAttestation` | YubiKey PIV MFA policy |
+| `AdminCertificateSettings` | `AllowedIssuers`, `AdminUsers[*].UserIdentifiers`, `AdminUsers[*].AllowedThumbprints` | Admin client certificate policy |
+| `GroupAccessSettings` | `Groups[*].GroupName`, `Groups[*].Users[*]` | Group admin certificate mapping |
+| `AwsSecretsManager` | `Region`, `CertificateSecretName`, `IVSecretName`, `NonceKeySecretName`, `AccessKeyId`, `SecretAccessKey` | AWS Secrets Manager (stub) |
+| `AwsDynamoDb` | `Region`, `TableName`, `AccessKeyId`, `SecretAccessKey` | Amazon DynamoDB |
+| `AwsCognito` | `Region`, `UserPoolId`, `AppClientId`, `AppClientSecret`, `Domain`, `CallbackPath` | AWS Cognito OIDC identity |
+| `GcpSecretManager` | `ProjectId`, `CertificateSecretId`, `IVSecretId`, `NonceKeySecretId`, `CredentialFilePath` | GCP Secret Manager (stub) |
+| `GcpFirestore` | `ProjectId`, `DatabaseId`, `CollectionName`, `CredentialFilePath` | Google Cloud Firestore |
+| `GcpIdentity` | `ClientId`, `ClientSecret`, `ProjectId`, `CallbackPath` | GCP Identity Platform (Google OAuth 2.0 / OIDC) |
+
+## Supporting scripts
+
+The `SupportingScripts/` directory contains PowerShell utilities:
+
+| Script | Purpose |
+|---|---|
+| `IVandKeySampleGenerator.ps1` | Generate a random 32-byte AES key and 16-byte IV (base64) |
+| `HashInlineScriptPowerShell.ps1` | Compute SHA-256 hashes for inline scripts (for CSP allow-listing) |
+| `HashInlineScriptPowerShellBase64Output.ps1` | Same as above, outputs hashes in base64 format |
+| `CertificateUploaderToAzureExample.ps1` | Upload a PFX certificate to Azure Key Vault |
+| `CheckRoles.ps1` | Verify Azure RBAC role assignments for the app |
+| `ExportResourceGroups.ps1` | Export Azure resource group configurations |
+| `TroubleshootingCosmosDBInfo.ps1` | Diagnose Cosmos DB connectivity |
+| `SetupFromTemplate.ps1` | Automate initial configuration from `appsettings.template.json` |
+
+## Security notes
+
+- **Never commit secrets** (`ClientSecret`, `KeyVaultSecret`, connection strings, encryption keys, AWS/GCP credentials) to source control. Use .NET User Secrets locally and Azure App Settings / Key Vault references in production.
+- The OCSP validation implementation is a **stub** that rejects all certificates. Replace `PerformOcspValidationAsync` in `OcspValidationService.cs` before enabling `EnableOcspValidation` in production.
+- The AWS Secrets Manager and GCP Secret Manager implementations are **stubs** that log a warning and return empty values. Replace the method bodies in `AwsSecretManagerOperations` and `GcpSecretManagerOperations` before enabling those features in production.
+- Nonce values are **never logged** — logging a nonce in plaintext would allow an attacker with log access to inject arbitrary inline scripts.
+- The `Server` response header is masked to `webserver` to avoid exposing platform information.
+- Review `AllowSelfSignedCertificates = false` (default) before deploying mTLS; self-signed certificates should only be used in development.
+- AWS `AccessKeyId` and `SecretAccessKey` must **never** appear in `appsettings.json` — use User Secrets, environment variables, or IAM instance roles.
+- For **AWS Cognito**, prefer IAM roles or Cognito Identity Pools over static credentials; never commit `AppClientSecret` to source control.
+- GCP credentials should use **Application Default Credentials (ADC)** rather than committing service-account JSON files.
+- For **GCP Identity**, the `ClientSecret` must be stored in User Secrets or environment variables — never in `appsettings.json`.
+
 ## Files most relevant to these diagrams
 
 - `WebAppExperimental266/Program.cs`
