@@ -8,7 +8,7 @@ namespace WebAppExperimental266.Models.Main_Objects
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
         [StringLength(120)]
-        public string Title { get; set; } = string.Empty;
+        public string? Title { get; set; }
 
         [StringLength(4000)]
         public string Description { get; set; } = string.Empty;

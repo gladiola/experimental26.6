@@ -11,14 +11,6 @@ namespace WebAppExperimental266.Controllers
     [Authorize(Policy = "AdminCertificate")]
     public class AdminRecordsController : Controller
     {
-        private const long MaxUploadBytes = 10 * 1024 * 1024;
-        private static readonly HashSet<string> SupportedCardTypes = new(StringComparer.OrdinalIgnoreCase)
-        {
-            "MIFARE Classic",
-            "HITAG",
-            "iCLASS",
-            "T55x7"
-        };
         private readonly CrudDbContext _dbContext;
         private readonly IAdminCertificateAuditService _auditService;
 
@@ -34,7 +26,7 @@ namespace WebAppExperimental266.Controllers
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "AdminRecordsController.Create");
             _auditService.LogPageAccess(HttpContext, User, "AdminRecords.Create");
-            ViewData["SupportedCardTypes"] = SupportedCardTypes.ToArray();
+            ViewData["SupportedCardTypes"] = UploadPolicy.SupportedCardTypes;
             return View();
         }
 
@@ -44,7 +36,7 @@ namespace WebAppExperimental266.Controllers
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "AdminRecordsController.CreatePost");
             _auditService.LogPageAccess(HttpContext, User, "AdminRecords.CreatePost");
-            ViewData["SupportedCardTypes"] = SupportedCardTypes.ToArray();
+            ViewData["SupportedCardTypes"] = UploadPolicy.SupportedCardTypes;
 
             if (uploadFile is null)
             {
@@ -60,7 +52,7 @@ namespace WebAppExperimental266.Controllers
                 ModelState.AddModelError(nameof(input.UploadPermissionConfirmed), "You must confirm upload permission.");
             }
 
-            if (string.IsNullOrWhiteSpace(input.CardType) || !SupportedCardTypes.Contains(input.CardType))
+            if (!UploadPolicy.IsSupportedCardType(input.CardType))
             {
                 ModelState.AddModelError(nameof(input.CardType), "Select a supported card type.");
             }
@@ -75,15 +67,13 @@ namespace WebAppExperimental266.Controllers
                 {
                     ModelState.AddModelError(string.Empty, "The selected file is empty.");
                 }
-                else if (uploadFile.Length > MaxUploadBytes)
+                else if (uploadFile.Length > UploadPolicy.MaxUploadBytes)
                 {
-                    ModelState.AddModelError(string.Empty, $"Files larger than {MaxUploadBytes / (1024 * 1024)} MB are not allowed.");
+                    ModelState.AddModelError(string.Empty, $"Files larger than {UploadPolicy.MaxUploadBytes / (1024 * 1024)} MB are not allowed.");
                 }
                 else
                 {
-                    await using var memoryStream = new MemoryStream();
-                    await uploadFile.CopyToAsync(memoryStream);
-                    uploadedBytes = memoryStream.ToArray();
+                    uploadedBytes = await UploadPolicy.ReadFileBytesAsync(uploadFile, HttpContext.RequestAborted);
                     uploadedFileSize = uploadFile.Length;
                     uploadedFileName = Path.GetFileName(uploadFile.FileName);
                     uploadedContentType = string.IsNullOrWhiteSpace(uploadFile.ContentType)
