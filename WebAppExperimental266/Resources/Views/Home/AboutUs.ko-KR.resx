@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="AboutUsTitle" xml:space="preserve">
+    <value>우리에 대해</value>
+  </data>
+  <data name="AboutUsBody" xml:space="preserve">
+    <value>이 페이지를 사용하여 조직과 사명을 설명하세요.</value>
+  </data>
+</root>

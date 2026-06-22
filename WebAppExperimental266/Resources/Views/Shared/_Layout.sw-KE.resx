@@ -21,4 +21,7 @@
   <data name="Language" xml:space="preserve">
     <value>Lugha</value>
   </data>
+  <data name="NavAboutUs" xml:space="preserve">
+    <value>Kuhusu Sisi</value>
+  </data>
 </root>

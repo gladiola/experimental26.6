@@ -21,4 +21,7 @@
   <data name="Language" xml:space="preserve">
     <value>Reo</value>
   </data>
+  <data name="NavAboutUs" xml:space="preserve">
+    <value>Mō Mātou</value>
+  </data>
 </root>

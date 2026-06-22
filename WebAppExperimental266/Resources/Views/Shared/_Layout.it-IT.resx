@@ -21,4 +21,7 @@
   <data name="Language" xml:space="preserve">
     <value>Lingua</value>
   </data>
+  <data name="NavAboutUs" xml:space="preserve">
+    <value>Chi siamo</value>
+  </data>
 </root>

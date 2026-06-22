@@ -21,4 +21,7 @@
   <data name="Language" xml:space="preserve">
     <value>Teanga</value>
   </data>
+  <data name="NavAboutUs" xml:space="preserve">
+    <value>Fúinn</value>
+  </data>
 </root>

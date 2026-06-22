@@ -1,0 +1,7 @@
+@inject IViewLocalizer Localizer
+@{
+    ViewData["Title"] = Localizer["AboutUsTitle"].Value;
+}
+<h1>@ViewData["Title"]</h1>
+
+<p>@Localizer["AboutUsBody"]</p>

@@ -34,6 +34,15 @@ namespace WebAppExperimental266.Controllers
         }
 
         [AllowAnonymous]
+        [Route("AboutUs")]
+        [Route("Home/AboutUs")]
+        public IActionResult AboutUs()
+        {
+            LoggingHelper.TrackFunctionCall(HttpContext, "HomeController.AboutUs");
+            return View();
+        }
+
+        [AllowAnonymous]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult SetLanguage(string culture, string returnUrl)
