@@ -75,6 +75,21 @@ namespace WebAppExperimental266.Tests.Models
         }
 
         [Fact]
+        public void DefaultFlags_YubiKeyRequired_IsDisabledByDefault()
+        {
+            var flags = new FeatureFlags();
+            flags.EnableYubiKeyRequired.Should().BeFalse(
+                "YubiKey MFA is opt-in and must be explicitly enabled by an operator");
+        }
+
+        [Fact]
+        public void DefaultFlags_YubiKeyRequired_CanBeEnabled()
+        {
+            var flags = new FeatureFlags { EnableYubiKeyRequired = true };
+            flags.EnableYubiKeyRequired.Should().BeTrue();
+        }
+
+        [Fact]
         public void AllFlags_CanBeOverridden()
         {
             // Arrange — simulate an explicit opt-out (e.g. integration test environment)
