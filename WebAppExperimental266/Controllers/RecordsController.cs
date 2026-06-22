@@ -158,24 +158,14 @@ namespace WebAppExperimental266.Controllers
         public async Task<IActionResult> Download(string id)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Download");
-            var record = await _dbContext.CrudRecords.FirstOrDefaultAsync(x => x.Id == id);
-            if (record == null)
-            {
-                return NotFound();
-            }
-
+            CrudRecord? record;
             if (User.Identity?.IsAuthenticated == true)
             {
-                var authorizationResult = await _authorizationService.AuthorizeAsync(User, record, CrudRecordOperations.Read);
-                if (!authorizationResult.Succeeded)
-                {
-                    LogOwnershipAuthorizationFailure("Download", id, record);
-                    return NotFound();
-                }
+                record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Read, "Download");
             }
-            else if (!record.IsPublic)
+            else
             {
-                return NotFound();
+                record = await _dbContext.CrudRecords.FirstOrDefaultAsync(x => x.Id == id && x.IsPublic);
             }
 
             if (record?.UploadedFileContent == null || record.UploadedFileContent.Length == 0)
@@ -329,10 +319,15 @@ namespace WebAppExperimental266.Controllers
             var hashedUserId = LoggingHelper.HashPii(userIdForLog);
             _logger.LogWarning(
                 "Ownership authorization failed for action {Action} on record {RecordId}. UserIdHash={UserIdHash} OwnerIdHash={OwnerIdHash}",
-                actionName,
-                recordId,
+                SanitizeForLog(actionName),
+                SanitizeForLog(recordId),
                 hashedUserId,
                 LoggingHelper.HashPii(record.OwnerId));
+        }
+
+        private static string SanitizeForLog(string value)
+        {
+            return value.Replace("\r", string.Empty).Replace("\n", string.Empty);
         }
     }
 }

@@ -35,24 +35,22 @@ namespace WebAppExperimental266.Services
                 UserIdentityHelper.GetStableUserId(context.User),
                 StringComparison.OrdinalIgnoreCase);
 
-            if (string.Equals(requirement.Name, CrudRecordOperations.Read.Name, StringComparison.Ordinal))
+            switch (requirement.Name)
             {
-                if (isOwner || resource.IsPublic)
-                {
-                    context.Succeed(requirement);
-                }
-
-                return Task.CompletedTask;
-            }
-
-            if (string.Equals(requirement.Name, CrudRecordOperations.Owner.Name, StringComparison.Ordinal) ||
-                string.Equals(requirement.Name, CrudRecordOperations.Edit.Name, StringComparison.Ordinal) ||
-                string.Equals(requirement.Name, CrudRecordOperations.Delete.Name, StringComparison.Ordinal))
-            {
-                if (isOwner)
-                {
-                    context.Succeed(requirement);
-                }
+                case nameof(CrudRecordOperations.Read):
+                    if (isOwner || resource.IsPublic)
+                    {
+                        context.Succeed(requirement);
+                    }
+                    break;
+                case nameof(CrudRecordOperations.Owner):
+                case nameof(CrudRecordOperations.Edit):
+                case nameof(CrudRecordOperations.Delete):
+                    if (isOwner)
+                    {
+                        context.Succeed(requirement);
+                    }
+                    break;
             }
 
             return Task.CompletedTask;
