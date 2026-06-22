@@ -6,35 +6,34 @@ An ASP.NET Core 9 Razor Pages web application with Azure AD authentication, mutu
 
 ## 🌐 Language Index
 
-This documentation is available in the following languages. Each language folder contains a README, Security Reviews, and translated guides.
+This documentation is available in the following languages:
 
-| Language | Folder |
+| Language | File |
 |---|---|
-| English (en-US) | [docs/en-US/](docs/en-US/) |
-| Afrikaans (af-ZA) | [docs/af-ZA/](docs/af-ZA/) |
-| Amharic (am-ET) | [docs/am-ET/](docs/am-ET/) |
-| Arabic (ar-SA) | [docs/ar-SA/](docs/ar-SA/) |
-| Bengali (bn-BD) | [docs/bn-BD/](docs/bn-BD/) |
-| German (de-DE) | [docs/de-DE/](docs/de-DE/) |
-| Spanish (es-ES) | [docs/es-ES/](docs/es-ES/) |
-| French (fr-FR) | [docs/fr-FR/](docs/fr-FR/) |
-| Irish (ga-IE) | [docs/ga-IE/](docs/ga-IE/) |
-| Hausa (ha-NG) | [docs/ha-NG/](docs/ha-NG/) |
-| Hawaiian (haw-US) | [docs/haw-US/](docs/haw-US/) |
-| Hindi (hi-IN) | [docs/hi-IN/](docs/hi-IN/) |
-| Haitian Creole (ht-HT) | [docs/ht-HT/](docs/ht-HT/) |
-| Italian (it-IT) | [docs/it-IT/](docs/it-IT/) |
-| Japanese (ja-JP) | [docs/ja-JP/](docs/ja-JP/) |
-| Korean (ko-KR) | [docs/ko-KR/](docs/ko-KR/) |
-| Māori (mi-NZ) | [docs/mi-NZ/](docs/mi-NZ/) |
-| Dutch (nl-NL) | [docs/nl-NL/](docs/nl-NL/) |
-| Portuguese (pt-PT) | [docs/pt-PT/](docs/pt-PT/) |
-| Russian (ru-RU) | [docs/ru-RU/](docs/ru-RU/) |
-| Samoan (sm-WS) | [docs/sm-WS/](docs/sm-WS/) |
-| Swahili (sw-KE) | [docs/sw-KE/](docs/sw-KE/) |
-| Yoruba (yo-NG) | [docs/yo-NG/](docs/yo-NG/) |
-| Chinese Simplified (zh-CN) | [docs/zh-CN/](docs/zh-CN/) |
-| Chinese Traditional (zh-HK) | [docs/zh-HK/](docs/zh-HK/) |
+| Afrikaans (af-ZA) | [docs/README.af-ZA.md](docs/README.af-ZA.md) |
+| Amharic (am-ET) | [docs/README.am-ET.md](docs/README.am-ET.md) |
+| Arabic (ar-SA) | [docs/README.ar-SA.md](docs/README.ar-SA.md) |
+| Bengali (bn-BD) | [docs/README.bn-BD.md](docs/README.bn-BD.md) |
+| German (de-DE) | [docs/README.de-DE.md](docs/README.de-DE.md) |
+| Spanish (es-ES) | [docs/README.es-ES.md](docs/README.es-ES.md) |
+| French (fr-FR) | [docs/README.fr-FR.md](docs/README.fr-FR.md) |
+| Irish (ga-IE) | [docs/README.ga-IE.md](docs/README.ga-IE.md) |
+| Hausa (ha-NG) | [docs/README.ha-NG.md](docs/README.ha-NG.md) |
+| Hawaiian (haw-US) | [docs/README.haw-US.md](docs/README.haw-US.md) |
+| Hindi (hi-IN) | [docs/README.hi-IN.md](docs/README.hi-IN.md) |
+| Haitian Creole (ht-HT) | [docs/README.ht-HT.md](docs/README.ht-HT.md) |
+| Italian (it-IT) | [docs/README.it-IT.md](docs/README.it-IT.md) |
+| Japanese (ja-JP) | [docs/README.ja-JP.md](docs/README.ja-JP.md) |
+| Korean (ko-KR) | [docs/README.ko-KR.md](docs/README.ko-KR.md) |
+| Māori (mi-NZ) | [docs/README.mi-NZ.md](docs/README.mi-NZ.md) |
+| Dutch (nl-NL) | [docs/README.nl-NL.md](docs/README.nl-NL.md) |
+| Portuguese (pt-PT) | [docs/README.pt-PT.md](docs/README.pt-PT.md) |
+| Russian (ru-RU) | [docs/README.ru-RU.md](docs/README.ru-RU.md) |
+| Samoan (sm-WS) | [docs/README.sm-WS.md](docs/README.sm-WS.md) |
+| Swahili (sw-KE) | [docs/README.sw-KE.md](docs/README.sw-KE.md) |
+| Yoruba (yo-NG) | [docs/README.yo-NG.md](docs/README.yo-NG.md) |
+| Chinese Simplified (zh-CN) | [docs/README.zh-CN.md](docs/README.zh-CN.md) |
+| Chinese Traditional (zh-HK) | [docs/README.zh-HK.md](docs/README.zh-HK.md) |
 
 ---
 

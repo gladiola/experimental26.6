@@ -1,0 +1,49 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>aspnet-WebAppExperimental266-fb321feb-b8c6-49d9-8521-817ab8c1f2ce</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AWSSDK.DynamoDBv2" Version="4.0.18.1" />
+    <PackageReference Include="AWSSDK.SecretsManager" Version="4.0.4.20" />
+    <PackageReference Include="Google.Cloud.Firestore" Version="4.2.0" />
+    <PackageReference Include="Google.Cloud.SecretManager.V1" Version="2.7.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.9" NoWarn="NU1605" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="9.0.9" NoWarn="NU1605" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="3.0.0" />
+    <PackageReference Include="Microsoft.Identity.Web.UI" Version="3.0.0" />
+    <PackageReference Include="Microsoft.Identity.Web.DownstreamApi" Version="3.0.0" />
+    <PackageReference Include="Microsoft.Azure.Cosmos" Version="3.45.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Cosmos" Version="9.0.0" />
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" Version="4.7.0" />
+    <PackageReference Include="Azure.Identity" Version="1.13.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="ConfigurationsAndCodeChecks\" />
+    <Folder Include="wwwroot\Downloads\" />
+  </ItemGroup>
+
+	<!-- Prepublish task to download configurations - Disabled for now -->
+	<!-- <Target Name="PrepublishConfigurationDownload" BeforeTargets="Build">
+		<Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(ProjectDir)SupportingScripts\ExportResourceGroups.ps1&quot;" />
+	</Target> -->
+
+	<!-- Calculate file hashes after building - Disabled for now -->
+	<!-- <Target Name="CalculateHashes" AfterTargets="PrepublishConfigurationDownload;Build">
+			<Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -Command &quot;function Get-FileHashes { param([string]$path) Get-ChildItem -Path $path -Recurse -File | ForEach-Object { $hash = Get-FileHash -Path $_.FullName -Algorithm SHA256; $bytes = [byte[]]::new($hash.Hash.Length / 2); for ($i = 0; $i -lt $hash.Hash.Length; $i += 2) { $bytes[$i / 2] = [Convert]::ToByte($hash.Hash.Substring($i, 2), 16); } $base64Hash = [Convert]::ToBase64String($bytes); $_.FullName +' sha256-' + $base64Hash } } Get-FileHashes '$(ProjectDir)*' | Out-File -FilePath '$(ProjectDir)ConfigurationsAndCodeChecks/LastBuildHashes.txt' -Encoding utf8;&quot;" />
+	</Target> -->
+
+	<!-- Git commit and push after building or publishing - Disabled for now -->
+	<!-- <Target Name="GitCommitAndPush" AfterTargets="Build;Publish">
+		<Exec Command="git add ." />
+		<Exec Command="git commit -m &quot;Automated commit from MSBuild&quot;" />
+		<Exec Command="git push origin master" />
+	</Target> -->
+
+</Project>

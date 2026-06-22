@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="NavHome" xml:space="preserve">
+    <value>الرئيسية</value>
+  </data>
+  <data name="NavPrivacy" xml:space="preserve">
+    <value>الخصوصية</value>
+  </data>
+  <data name="FooterPrivacy" xml:space="preserve">
+    <value>الخصوصية</value>
+  </data>
+  <data name="ToggleNavigation" xml:space="preserve">
+    <value>تبديل التنقل</value>
+  </data>
+  <data name="Language" xml:space="preserve">
+    <value>اللغة</value>
+  </data>
+</root>

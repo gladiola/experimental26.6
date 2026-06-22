@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="PrivacyPolicyTitle" xml:space="preserve">
+    <value>私隱政策</value>
+  </data>
+  <data name="PrivacyPageBody" xml:space="preserve">
+    <value>請使用此頁面描述您網站的私隱政策。</value>
+  </data>
+</root>

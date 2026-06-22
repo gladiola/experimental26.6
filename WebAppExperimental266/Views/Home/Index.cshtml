@@ -1,0 +1,9 @@
+﻿@inject IViewLocalizer Localizer
+@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">@Localizer["WelcomeHeading"]</h1>
+    <p>@Localizer["LearnAbout"] <a href="https://learn.microsoft.com/aspnet/core">ASP.NET Core</a>.</p>
+</div>

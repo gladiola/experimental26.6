@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="PrivacyPolicyTitle" xml:space="preserve">
+    <value>개인정보 처리방침</value>
+  </data>
+  <data name="PrivacyPageBody" xml:space="preserve">
+    <value>이 페이지를 사용하여 사이트의 개인정보 처리방침을 설명하세요.</value>
+  </data>
+</root>
