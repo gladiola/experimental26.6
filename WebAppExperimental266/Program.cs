@@ -116,6 +116,8 @@ namespace WebAppExperimental266
                 logger,
                 featureFlags.EnableAuthorization,
                 featureFlags.EnableYubiKeyRequired);
+            builder.Services.AddCrudDataServices(builder.Configuration, logger, environment);
+            builder.Services.AddAdminCertificateAuthorization(builder.Configuration, logger);
 
             // Phase 3: Azure Services (Advanced)
             if (featureFlags.EnableKeyVault)
@@ -206,6 +208,7 @@ namespace WebAppExperimental266
 
             // Build app
             var app = builder.Build();
+            await app.EnsureCrudDataStoreCreatedAsync(logger);
 
             // Configure HTTP pipeline
             if (!app.Environment.IsDevelopment())
@@ -242,7 +245,10 @@ namespace WebAppExperimental266
                 app.UseSession();
             }
 
-            if (featureFlags.EnableAzureAd)
+            if (featureFlags.EnableAzureAd ||
+                featureFlags.EnableAwsCognito ||
+                featureFlags.EnableGcpIdentity ||
+                featureFlags.EnableMtls)
             {
                 app.UseAuthentication();
             }

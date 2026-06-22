@@ -333,6 +333,26 @@ pkg_add curl git
 
 If neither Podman nor Docker is available for your OpenBSD version, consider running the app in a **Linux VM** (e.g., vmm(4) with a Debian/Ubuntu guest) and following the standard Linux deployment path from within that guest.
 
+## MVC CRUD pages and admin certificates
+
+The application now includes MVC CRUD pages for `CrudRecord` data:
+
+- `/Records` is a login-protected CRUD area for the signed-in user's own records.
+- `/AdminRecords` is a globally scoped admin area that requires both the normal application login and a dedicated admin client certificate.
+
+Configure the backing store in `CrudData`:
+
+- `Provider = "Sqlite"` uses a local relational SQLite database at `CrudData:SqliteDatabasePath`.
+- `Provider = "Cosmos"` uses the existing Azure Cosmos DB settings and stores records in `CrudData:CosmosContainerName`.
+
+Configure `AdminCertificateSettings` with:
+
+- `AllowedIssuers`: the issuer DN fragment for the admin-only CA
+- `AdminUsers[*].UserIdentifiers`: the admin user's identity values (OID, email, UPN, etc.)
+- `AdminUsers[*].AllowedThumbprints`: the certificate thumbprints allowed for that admin user
+
+Admin certificate authentication attempts and admin page access are logged with the certificate thumbprint that was presented.
+
 ### 2. Pull the ASP.NET Core 9 Runtime Image
 
 ```sh

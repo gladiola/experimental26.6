@@ -344,7 +344,7 @@ namespace WebAppExperimental266.Extensions
                 logger.LogInformation("mTLS: Certificate revocation check = {RevocationCheck}",
                     mtlsSettings.CheckCertificateRevocation ? "ENABLED" : "DISABLED");
 
-                services.AddAuthentication(CertificateAuthenticationDefaults.AuthenticationScheme)
+                services.AddAuthentication()
                     .AddCertificate(options =>
                     {
                         // Configure certificate types
