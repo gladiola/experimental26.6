@@ -35,13 +35,14 @@
     <h1 id="site-features-roles-flows-and-certificate-architecture-guide-en-us">Site Features, Roles, Flows, and Certificate Architecture Guide (en-US)</h1>
 <p>This guide documents the current structure of the site, the roles that are actually wired into the repository, the pages and assets those roles activate, the most common request flows, the certificate-authority processes behind privileged access, and how the automated tests interact with the application.</p>
 <blockquote>
-<p><strong>Current-scope note:</strong> The repository currently implements <strong>public</strong>, <strong>authenticated user</strong>, <strong>site admin (admin certificate)</strong>, and <strong>YubiKey MFA policy</strong> flows. A dedicated <strong>group admin</strong> role is <strong>not implemented in the current checkout</strong>, and the <code>/Experimental/*</code> YubiKey policy hook exists even though no Razor Pages currently live under that folder.</p>
+<p><strong>Current-scope note:</strong> The repository currently implements <strong>public</strong>, <strong>authenticated user</strong>, <strong>site admin (admin certificate)</strong>, <strong>group admin (group-scoped certificate)</strong>, and <strong>YubiKey MFA policy</strong> flows. The <code>/Experimental/*</code> YubiKey policy hook exists even though no Razor Pages currently live under that folder.</p>
 </blockquote>
 <h2 id="feature-summary">Feature summary</h2>
 <ul>
 <li>Public visitors can browse public card dumps, open ArcGIS maps, switch language, and download public files.</li>
 <li>Authenticated users can sign in through an OIDC provider and manage their own records.</li>
 <li>Site admins must pass the normal login flow <strong>and</strong> present a mapped admin client certificate to access the admin-records surface.</li>
+<li>Group admins must pass the normal login flow <strong>and</strong> present a mapped group-admin client certificate to access group-scoped records.</li>
 <li>YubiKey MFA is modeled as a second factor for <code>/Experimental/*</code>: a signed-in user must also present a trusted YubiKey PIV certificate and pass OCSP validation.</li>
 <li>The app can integrate with Azure Key Vault, Cosmos DB, Blob Storage, AWS services, and GCP services through feature flags.</li>
 <li>Tests are run with <code>dotnet test</code>; they are not executed during plain compilation.</li>
@@ -88,20 +89,21 @@
 </tr>
 <tr>
 <td>Group admin</td>
-<td>No</td>
-<td>Not implemented</td>
-<td>None</td>
-<td>None</td>
+<td>Yes</td>
+<td>OIDC login + <code>GroupAdminCertificate</code> policy</td>
+<td>Group Admin Records CRUD</td>
+<td>Client certificate mapped to group/user identity, group-scoped CRUD, audit logging</td>
 </tr>
 </tbody>
 </table>
 <h2 id="diagram-1-whole-site-structure">Diagram 1 — whole-site structure</h2>
 <p><img alt="Whole-site structure" src="diagrams/site-structure.svg" /></p>
-<p>The site surface is centered on three implemented controller areas:</p>
+<p>The site surface is centered on four implemented controller areas:</p>
 <ul>
 <li><code>HomeController</code> for public content and role-based map selection.</li>
 <li><code>RecordsController</code> for owner-scoped CRUD actions after sign-in.</li>
 <li><code>AdminRecordsController</code> for admin-scoped CRUD actions after both primary login and certificate validation.</li>
+<li><code>GroupAdminRecordsController</code> for group-scoped CRUD actions after both primary login and group-admin certificate validation.</li>
 </ul>
 <p>The repo also wires a YubiKey policy to <code>/Experimental/*</code>, but there are no Razor Pages under <code>Pages/Experimental</code> in this checkout.</p>
 <h2 id="page-and-route-inventory">Page and route inventory</h2>
@@ -180,6 +182,12 @@
 <td>Site admin</td>
 <td><code>AdminRecordsController.*</code></td>
 <td>Full-record CRUD and admin search/filter</td>
+</tr>
+<tr>
+<td><code>/GroupAdminRecords/*</code></td>
+<td>Group admin</td>
+<td><code>GroupAdminRecordsController.*</code></td>
+<td>Group-scoped CRUD limited to the mapped group</td>
 </tr>
 <tr>
 <td><code>/Account/SignIn</code>, <code>/Account/SignOut</code></td>
@@ -265,8 +273,8 @@
 <li><strong>Anonymous</strong> users only get public content.</li>
 <li><strong>Authenticated</strong> users unlock owner-scoped CRUD pages.</li>
 <li><strong>Site admins</strong> are a stricter state on top of authenticated users and require a mapped certificate.</li>
+<li><strong>Group admins</strong> are a stricter state on top of authenticated users and require a mapped group-admin certificate.</li>
 <li><strong>YubiKey MFA users</strong> are another stricter state on top of authenticated users and are intended for <code>/Experimental/*</code>.</li>
-<li><strong>Group admin</strong> is a requested documentation concept, but there is no route, policy, or handler for it in the repository.</li>
 </ul>
 <h2 id="diagram-5-what-programs-and-functions-activate-during-key-interactions">Diagram 5 — what programs and functions activate during key interactions</h2>
 <p><img alt="Request and function activation" src="diagrams/request-function-activation.svg" /></p>
@@ -299,6 +307,11 @@
 <td>Open admin pages</td>
 <td><code>AdminCertificateRequirementHandler</code> then <code>AdminRecordsController.*</code></td>
 <td><code>AdminCertificateAuditService</code>, <code>CrudDbContext</code></td>
+</tr>
+<tr>
+<td>Open group-admin pages</td>
+<td><code>GroupAdminCertificateRequirementHandler</code> then <code>GroupAdminRecordsController.*</code></td>
+<td><code>GroupAccessSettings</code>, <code>AdminCertificateAuditService</code>, <code>CrudDbContext</code></td>
 </tr>
 <tr>
 <td>Open YubiKey-protected route</td>
@@ -360,8 +373,8 @@
 </tr>
 <tr>
 <td>Group admin</td>
-<td>No implementation</td>
-<td>No current validation path</td>
+<td>Yes</td>
+<td><code>GroupAccessSettings</code> group/user mapping + mapped thumbprint + allowed issuer</td>
 </tr>
 </tbody>
 </table>
@@ -409,29 +422,64 @@
 </tbody>
 </table>
 <h3 id="current-timing-answer">Current timing answer</h3>
-<p>The automated tests run <strong>during <code>dotnet test</code></strong>, not during a plain <code>dotnet build</code>. In the current validation run for this task, the repository passed <strong>362 tests</strong>.</p>
+<p>The automated tests run <strong>during <code>dotnet test</code></strong>, not during a plain <code>dotnet build</code>. In the current validation run for this task, the repository passed <strong>367 tests</strong>.</p>
 <h2 id="operational-observations-and-gaps">Operational observations and gaps</h2>
 <ul>
-<li>The repository contains a strong certificate-driven admin and YubiKey story, but <strong>group-admin-specific flows are not yet implemented</strong>.</li>
+<li>Group-admin-specific flows are implemented with a dedicated controller, views, authorization policy, certificate mapping model, and tests.</li>
 <li><code>/Experimental/*</code> is already reserved for YubiKey MFA, so future feature work can attach new Razor Pages there without redesigning the auth model.</li>
 <li>The home page is the clearest page-to-asset hub because it combines database reads, authorization-sensitive ArcGIS selection, and public downloads.</li>
 <li>The admin views and user views both ship inline filter scripts, so CSP/nonce behavior matters for these pages when nonce services are enabled.</li>
 </ul>
+<h2 id="security-feature-summary-mapped-to-nist-controls-sp-800-53-rev-5">Security feature summary mapped to NIST controls (SP 800-53 Rev. 5)</h2>
+<table>
+<thead>
+<tr>
+<th>Security feature area</th>
+<th>Current implementation in this repo</th>
+<th>NIST control mappings</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Security headers</td>
+<td>CSP with nonce/hash support; X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy, COOP/CORP, cache-control hardening</td>
+<td><strong>SC-5</strong> (Denial-of-Service protections), <strong>SC-7</strong> (Boundary protection), <strong>SC-8</strong> (Transmission confidentiality/integrity), <strong>SC-23</strong> (Session authenticity), <strong>SI-10</strong> (Information input validation)</td>
+</tr>
+<tr>
+<td>Certificate-based access control</td>
+<td><code>AdminCertificate</code> and <code>GroupAdminCertificate</code> policies enforce mapped client-certificate access for privileged routes; failed/successful attempts are audited</td>
+<td><strong>IA-2</strong> (Identification and authentication), <strong>IA-5</strong> (Authenticator management), <strong>AC-3</strong> (Access enforcement), <strong>AU-2/AU-12</strong> (Auditable events and logging)</td>
+</tr>
+<tr>
+<td>External resource use</td>
+<td>Feature-flagged integrations for Azure Key Vault/Cosmos/Blob, AWS Secrets Manager/DynamoDB/Cognito, and GCP Secret Manager/Firestore/Identity with explicit startup wiring</td>
+<td><strong>CM-7</strong> (Least functionality), <strong>SA-9</strong> (External system services), <strong>SC-7</strong> (Boundary protection), <strong>SR-3</strong> (Supply chain controls)</td>
+</tr>
+<tr>
+<td>MFA (YubiKey)</td>
+<td><code>YubiKeyMfa</code> policy enforces second factor via client cert checks, issuer/thumbprint constraints, optional attestation checks, and OCSP revocation validation</td>
+<td><strong>IA-2(1)/(2)</strong> (Multi-factor authentication), <strong>IA-5</strong> (Authenticator management), <strong>SC-17</strong> (PKI certificates), <strong>SI-4</strong> (System monitoring through revocation/status checks)</td>
+</tr>
+</tbody>
+</table>
 <h2 id="files-most-relevant-to-these-diagrams">Files most relevant to these diagrams</h2>
 <ul>
 <li><code>WebAppExperimental266/Program.cs</code></li>
 <li><code>WebAppExperimental266/Controllers/HomeController.cs</code></li>
 <li><code>WebAppExperimental266/Controllers/RecordsController.cs</code></li>
 <li><code>WebAppExperimental266/Controllers/AdminRecordsController.cs</code></li>
+<li><code>WebAppExperimental266/Controllers/GroupAdminRecordsController.cs</code></li>
 <li><code>WebAppExperimental266/Extensions/ServiceCollectionExtensions.cs</code></li>
 <li><code>WebAppExperimental266/Extensions/CrudAndAdminExtensions.cs</code></li>
 <li><code>WebAppExperimental266/Services/AdminCertificateRequirementHandler.cs</code></li>
+<li><code>WebAppExperimental266/Services/GroupAdminCertificateRequirementHandler.cs</code></li>
 <li><code>WebAppExperimental266/Services/YubiKeyRequirementHandler.cs</code></li>
 <li><code>WebAppExperimental266/Services/CrudRecordAuthorizationHandler.cs</code></li>
 <li><code>WebAppExperimental266/Views/Shared/_Layout.cshtml</code></li>
 <li><code>WebAppExperimental266/Views/Home/Index.cshtml</code></li>
 <li><code>WebAppExperimental266/Views/Records/Index.cshtml</code></li>
 <li><code>WebAppExperimental266/Views/AdminRecords/Index.cshtml</code></li>
+<li><code>WebAppExperimental266/Views/GroupAdminRecords/Index.cshtml</code></li>
 <li><code>WebAppExperimental266.Tests/Integration/ApplicationIntegrationTests.cs</code></li>
 <li><code>WebAppExperimental266.Tests/Integration/MtlsIntegrationTests.cs</code></li>
 <li><code>docs/YUBIKEY_OPENBSD_ADMIN_GUIDE.md</code></li>
