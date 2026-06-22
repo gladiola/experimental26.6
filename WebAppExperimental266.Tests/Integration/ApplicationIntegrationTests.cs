@@ -165,6 +165,9 @@ namespace WebAppExperimental266.Tests.Integration
     /// </summary>
     public class TestWebApplicationFactory : WebApplicationFactory<Program>
     {
+        private readonly string _sqliteDatabasePath =
+            Path.Combine(Path.GetTempPath(), $"experimental266-tests-{Guid.NewGuid():N}.db");
+
         protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder)
         {
             // UseSetting overrides configuration values before Program.cs reads them.
@@ -174,6 +177,8 @@ namespace WebAppExperimental266.Tests.Integration
             builder.UseSetting("FeatureFlags:EnableBlobStorage", "false");
             builder.UseSetting("FeatureFlags:EnableNonceServices", "false");
             builder.UseSetting("FeatureFlags:EnableKeyVault", "false");
+            builder.UseSetting("CrudData:Provider", "Sqlite");
+            builder.UseSetting("CrudData:SqliteDatabasePath", _sqliteDatabasePath);
         }
     }
 }
