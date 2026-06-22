@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IO;
 using WebAppExperimental266.Data;
 using WebAppExperimental266.Models.Main_Objects;
 using WebAppExperimental266.Services;
@@ -10,6 +11,7 @@ namespace WebAppExperimental266.Controllers
     [Authorize(Policy = "AdminCertificate")]
     public class AdminRecordsController : Controller
     {
+        private const long MaxUploadBytes = 5 * 1024 * 1024;
         private readonly CrudDbContext _dbContext;
         private readonly IAdminCertificateAuditService _auditService;
 
@@ -19,6 +21,88 @@ namespace WebAppExperimental266.Controllers
         {
             _dbContext = dbContext;
             _auditService = auditService;
+        }
+
+        public IActionResult Create()
+        {
+            LoggingHelper.TrackFunctionCall(HttpContext, "AdminRecordsController.Create");
+            _auditService.LogPageAccess(HttpContext, User, "AdminRecords.Create");
+            return View();
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Create([Bind("Title,Description")] CrudRecord input, IFormFile? uploadFile)
+        {
+            LoggingHelper.TrackFunctionCall(HttpContext, "AdminRecordsController.CreatePost");
+            _auditService.LogPageAccess(HttpContext, User, "AdminRecords.CreatePost");
+
+            if (uploadFile is null && string.IsNullOrWhiteSpace(input.Title) && string.IsNullOrWhiteSpace(input.Description))
+            {
+                ModelState.AddModelError(string.Empty, "Provide text or select a file to upload.");
+            }
+
+            byte[]? uploadedBytes = null;
+            string? uploadedFileName = null;
+            string? uploadedContentType = null;
+            long? uploadedFileSize = null;
+            if (uploadFile is not null)
+            {
+                if (uploadFile.Length <= 0)
+                {
+                    ModelState.AddModelError(string.Empty, "The selected file is empty.");
+                }
+                else if (uploadFile.Length > MaxUploadBytes)
+                {
+                    ModelState.AddModelError(string.Empty, $"Files larger than {MaxUploadBytes / (1024 * 1024)} MB are not allowed.");
+                }
+                else
+                {
+                    await using var memoryStream = new MemoryStream();
+                    await uploadFile.CopyToAsync(memoryStream);
+                    uploadedBytes = memoryStream.ToArray();
+                    uploadedFileSize = uploadFile.Length;
+                    uploadedFileName = Path.GetFileName(uploadFile.FileName);
+                    uploadedContentType = string.IsNullOrWhiteSpace(uploadFile.ContentType)
+                        ? "application/octet-stream"
+                        : uploadFile.ContentType;
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View(input);
+            }
+
+            var now = DateTime.UtcNow;
+            var trimmedTitle = input.Title?.Trim();
+            var fallbackTitle = string.IsNullOrWhiteSpace(uploadedFileName) ? "Untitled Upload" : uploadedFileName;
+            var record = new CrudRecord
+            {
+                Title = string.IsNullOrWhiteSpace(trimmedTitle) ? fallbackTitle : trimmedTitle,
+                Description = input.Description ?? string.Empty,
+                UploadedFileName = uploadedFileName,
+                UploadedContentType = uploadedContentType,
+                UploadedFileSizeBytes = uploadedFileSize,
+                UploadedFileContent = uploadedBytes,
+                OwnerId = UserIdentityHelper.GetStableUserId(User),
+                OwnerDisplayName = UserIdentityHelper.GetDisplayName(User),
+                CreatedUtc = now,
+                UpdatedUtc = now
+            };
+
+            _dbContext.CrudRecords.Add(record);
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                ModelState.AddModelError(string.Empty, "The record could not be saved. Please try again.");
+                return View(input);
+            }
+
+            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Index()
@@ -106,6 +190,27 @@ namespace WebAppExperimental266.Controllers
             }
 
             return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> Download(string id)
+        {
+            LoggingHelper.TrackFunctionCall(HttpContext, "AdminRecordsController.Download");
+            _auditService.LogPageAccess(HttpContext, User, "AdminRecords.Download");
+            var record = await FindRecordAsync(id);
+            if (record?.UploadedFileContent == null || record.UploadedFileContent.Length == 0)
+            {
+                return NotFound();
+            }
+
+            var contentType = string.IsNullOrWhiteSpace(record.UploadedContentType)
+                ? "application/octet-stream"
+                : record.UploadedContentType;
+            var fileName = string.IsNullOrWhiteSpace(record.UploadedFileName)
+                ? "upload.bin"
+                : record.UploadedFileName;
+
+            return File(record.UploadedFileContent, contentType, fileName);
         }
 
         public async Task<IActionResult> Delete(string id)

@@ -14,6 +14,16 @@ namespace WebAppExperimental266.Models.Main_Objects
         [StringLength(4000)]
         public string Description { get; set; } = string.Empty;
 
+        [StringLength(260)]
+        public string? UploadedFileName { get; set; }
+
+        [StringLength(120)]
+        public string? UploadedContentType { get; set; }
+
+        public long? UploadedFileSizeBytes { get; set; }
+
+        public byte[]? UploadedFileContent { get; set; }
+
         [Required]
         [StringLength(256)]
         public string OwnerId { get; set; } = string.Empty;

@@ -25,6 +25,8 @@ namespace WebAppExperimental266.Data
             entity.HasKey(record => record.Id);
             entity.Property(record => record.Title).HasMaxLength(120).IsRequired();
             entity.Property(record => record.Description).HasMaxLength(4000);
+            entity.Property(record => record.UploadedFileName).HasMaxLength(260);
+            entity.Property(record => record.UploadedContentType).HasMaxLength(120);
             entity.Property(record => record.OwnerId).HasMaxLength(256).IsRequired();
             entity.Property(record => record.OwnerDisplayName).HasMaxLength(256);
 
