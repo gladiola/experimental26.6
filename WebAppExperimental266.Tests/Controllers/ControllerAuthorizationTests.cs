@@ -26,5 +26,16 @@ namespace WebAppExperimental266.Tests.Controllers
             attribute.Should().NotBeNull();
             attribute!.Policy.Should().Be("AdminCertificate");
         }
+
+        [Fact]
+        public void GroupAdminRecordsController_UsesGroupAdminCertificatePolicy()
+        {
+            var attribute = typeof(GroupAdminRecordsController).GetCustomAttributes(typeof(AuthorizeAttribute), inherit: true)
+                .Cast<AuthorizeAttribute>()
+                .SingleOrDefault();
+
+            attribute.Should().NotBeNull();
+            attribute!.Policy.Should().Be("GroupAdminCertificate");
+        }
     }
 }

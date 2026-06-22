@@ -30,6 +30,7 @@ namespace WebAppExperimental266.Data
             entity.Property(record => record.CardType).HasMaxLength(64);
             entity.Property(record => record.OwnerId).HasMaxLength(256).IsRequired();
             entity.Property(record => record.OwnerDisplayName).HasMaxLength(256);
+            entity.Property(record => record.GroupId).HasMaxLength(64);
 
             if (_settings.UseCosmos)
             {

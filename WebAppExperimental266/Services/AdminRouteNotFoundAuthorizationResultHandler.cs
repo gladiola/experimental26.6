@@ -31,7 +31,8 @@ namespace WebAppExperimental266.Services
 
             var authorizeData = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>();
             return authorizeData.Any(metadata =>
-                string.Equals(metadata.Policy, "AdminCertificate", StringComparison.Ordinal));
+                string.Equals(metadata.Policy, "AdminCertificate", StringComparison.Ordinal)
+                || string.Equals(metadata.Policy, "GroupAdminCertificate", StringComparison.Ordinal));
         }
     }
 }

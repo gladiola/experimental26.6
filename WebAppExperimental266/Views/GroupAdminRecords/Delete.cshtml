@@ -1,0 +1,26 @@
+@model WebAppExperimental266.Models.Main_Objects.CrudRecord
+
+@{
+    ViewData["Title"] = "Group Admin Delete Record";
+}
+
+<h1>Group Admin Delete Record</h1>
+
+<p class="text-danger">This will permanently remove the record for all users.</p>
+
+<dl class="row">
+    <dt class="col-sm-2">Owner</dt>
+    <dd class="col-sm-10">@Model.OwnerDisplayName</dd>
+
+    <dt class="col-sm-2">Title</dt>
+    <dd class="col-sm-10">@Model.Title</dd>
+
+    <dt class="col-sm-2">Description</dt>
+    <dd class="col-sm-10">@Model.Description</dd>
+</dl>
+
+<form asp-action="Delete" method="post">
+    <input asp-for="Id" type="hidden" />
+    <button type="submit" class="btn btn-danger">Delete</button>
+    <a asp-action="Index" class="btn btn-secondary">Back</a>
+</form>

@@ -1,6 +1,4 @@
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Authorization.Infrastructure;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
@@ -11,73 +9,63 @@ using WebAppExperimental266.Services;
 
 namespace WebAppExperimental266.Controllers
 {
-    [Authorize(Policy = "AuthenticatedUser")]
-    public class RecordsController : Controller
+    [Authorize(Policy = "GroupAdminCertificate")]
+    public class GroupAdminRecordsController : Controller
     {
         private readonly CrudDbContext _dbContext;
-        private readonly IAuthorizationService _authorizationService;
-        private readonly ILogger<RecordsController> _logger;
         private readonly GroupAccessSettings _groupAccessSettings;
+        private readonly IAdminCertificateAuditService _auditService;
 
-        public RecordsController(
+        public GroupAdminRecordsController(
             CrudDbContext dbContext,
-            IAuthorizationService authorizationService,
-            ILogger<RecordsController> logger,
-            GroupAccessSettings groupAccessSettings)
+            GroupAccessSettings groupAccessSettings,
+            IAdminCertificateAuditService auditService)
         {
             _dbContext = dbContext;
-            _authorizationService = authorizationService;
-            _logger = logger;
             _groupAccessSettings = groupAccessSettings;
+            _auditService = auditService;
         }
 
         public async Task<IActionResult> Index()
         {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Index");
-            var ownerId = UserIdentityHelper.GetStableUserId(User);
-            var certificateIssuer = HttpContext.Connection.ClientCertificate?.Issuer;
-            var groupId = _groupAccessSettings.ResolveUserGroup(User, certificateIssuer);
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.Index");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.Index");
+            var groupId = GetCurrentGroupId();
+            if (groupId == null)
+            {
+                return NotFound();
+            }
+
             var records = await _dbContext.CrudRecords
-                .Where(record =>
-                    record.OwnerId == ownerId
-                    || (!string.IsNullOrWhiteSpace(groupId) && record.GroupId == groupId))
-                .OrderByDescending(record => record.UpdatedUtc)
+                .Where(record => record.GroupId == groupId)
+                .OrderBy(record => record.OwnerDisplayName)
+                .ThenBy(record => record.Title)
                 .ToListAsync();
 
             return View(records);
         }
 
-        [EnableRateLimiting("RecordIdOperations")]
-        public async Task<IActionResult> Details(string id)
-        {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Details");
-            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Owner, "Details");
-            if (record == null)
-            {
-                return NotFound();
-            }
-
-            ViewData["CanEdit"] = string.Equals(
-                record.OwnerId,
-                UserIdentityHelper.GetStableUserId(User),
-                StringComparison.OrdinalIgnoreCase);
-            return View(record);
-        }
-
-        [HttpGet("/upload")]
         public IActionResult Create()
         {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Create");
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.Create");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.Create");
             ViewData["SupportedCardTypes"] = UploadPolicy.SupportedCardTypes;
             return View();
         }
 
-        [HttpPost("/upload")]
+        [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Title,Description,CardType,IsPublic,UploadPermissionConfirmed")] CrudRecord input, IFormFile? uploadFile)
         {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.CreatePost");
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.CreatePost");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.CreatePost");
             ViewData["SupportedCardTypes"] = UploadPolicy.SupportedCardTypes;
+
+            var groupId = GetCurrentGroupId();
+            if (groupId == null)
+            {
+                return NotFound();
+            }
 
             if (uploadFile is null)
             {
@@ -131,7 +119,6 @@ namespace WebAppExperimental266.Controllers
             var now = DateTime.UtcNow;
             var trimmedTitle = input.Title?.Trim();
             var fallbackTitle = string.IsNullOrWhiteSpace(uploadedFileName) ? "Untitled Upload" : uploadedFileName;
-            var groupId = _groupAccessSettings.ResolveUserGroup(User, HttpContext.Connection.ClientCertificate?.Issuer);
             var record = new CrudRecord
             {
                 Title = string.IsNullOrWhiteSpace(trimmedTitle) ? fallbackTitle : trimmedTitle,
@@ -145,7 +132,7 @@ namespace WebAppExperimental266.Controllers
                 UploadPermissionConfirmed = input.UploadPermissionConfirmed,
                 OwnerId = UserIdentityHelper.GetStableUserId(User),
                 OwnerDisplayName = UserIdentityHelper.GetDisplayName(User),
-                GroupId = groupId ?? string.Empty,
+                GroupId = groupId,
                 CreatedUtc = now,
                 UpdatedUtc = now
             };
@@ -161,47 +148,27 @@ namespace WebAppExperimental266.Controllers
                 return View(input);
             }
 
-            _logger.LogInformation("Created CRUD record {RecordId} for user {UserId}", record.Id, LoggingHelper.HashPii(record.OwnerId));
-
             return RedirectToAction(nameof(Index));
         }
 
-        [AllowAnonymous]
-        [HttpGet]
-        [EnableRateLimiting("RecordIdOperations")]
-        public async Task<IActionResult> Download(string id)
+        public async Task<IActionResult> Details(string id)
         {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Download");
-            CrudRecord? record;
-            if (User.Identity?.IsAuthenticated == true)
-            {
-                record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Read, "Download");
-            }
-            else
-            {
-                record = await _dbContext.CrudRecords.FirstOrDefaultAsync(x => x.Id == id && x.IsPublic);
-            }
-
-            if (record?.UploadedFileContent == null || record.UploadedFileContent.Length == 0)
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.Details");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.Details");
+            var record = await FindRecordAsync(id);
+            if (record == null)
             {
                 return NotFound();
             }
 
-            var contentType = string.IsNullOrWhiteSpace(record.UploadedContentType)
-                ? "application/octet-stream"
-                : record.UploadedContentType;
-            var fileName = string.IsNullOrWhiteSpace(record.UploadedFileName)
-                ? "upload.bin"
-                : record.UploadedFileName;
-
-            return File(record.UploadedFileContent, contentType, fileName);
+            return View(record);
         }
 
-        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> Edit(string id)
         {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Edit");
-            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Edit, "Edit");
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.Edit");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.Edit");
+            var record = await FindRecordAsync(id);
             if (record == null)
             {
                 return NotFound();
@@ -212,16 +179,17 @@ namespace WebAppExperimental266.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> Edit(string id, [Bind("Id,Title,Description")] CrudRecord input)
         {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.EditPost");
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.EditPost");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.EditPost");
+
             if (id != input.Id)
             {
                 return NotFound();
             }
 
-            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Edit, "EditPost");
+            var record = await FindRecordAsync(id);
             if (record == null)
             {
                 return NotFound();
@@ -231,6 +199,7 @@ namespace WebAppExperimental266.Controllers
             {
                 input.OwnerId = record.OwnerId;
                 input.OwnerDisplayName = record.OwnerDisplayName;
+                input.GroupId = record.GroupId;
                 input.CreatedUtc = record.CreatedUtc;
                 input.UpdatedUtc = record.UpdatedUtc;
                 return View(input);
@@ -258,11 +227,32 @@ namespace WebAppExperimental266.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        [EnableRateLimiting("RecordIdOperations")]
+        [HttpGet]
+        public async Task<IActionResult> Download(string id)
+        {
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.Download");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.Download");
+            var record = await FindRecordAsync(id);
+            if (record?.UploadedFileContent == null || record.UploadedFileContent.Length == 0)
+            {
+                return NotFound();
+            }
+
+            var contentType = string.IsNullOrWhiteSpace(record.UploadedContentType)
+                ? "application/octet-stream"
+                : record.UploadedContentType;
+            var fileName = string.IsNullOrWhiteSpace(record.UploadedFileName)
+                ? "upload.bin"
+                : record.UploadedFileName;
+
+            return File(record.UploadedFileContent, contentType, fileName);
+        }
+
         public async Task<IActionResult> Delete(string id)
         {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Delete");
-            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Delete, "Delete");
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.Delete");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.Delete");
+            var record = await FindRecordAsync(id);
             if (record == null)
             {
                 return NotFound();
@@ -273,11 +263,11 @@ namespace WebAppExperimental266.Controllers
 
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("RecordIdOperations")]
         public async Task<IActionResult> DeleteConfirmed(string id)
         {
-            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.DeleteConfirmed");
-            var record = await FindAuthorizedRecordAsync(id, CrudRecordOperations.Delete, "DeleteConfirmed");
+            LoggingHelper.TrackFunctionCall(HttpContext, "GroupAdminRecordsController.DeleteConfirmed");
+            _auditService.LogPageAccess(HttpContext, User, "GroupAdminRecords.DeleteConfirmed");
+            var record = await FindRecordAsync(id);
             if (record == null)
             {
                 return NotFound();
@@ -297,51 +287,32 @@ namespace WebAppExperimental266.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        private async Task<CrudRecord?> FindAuthorizedRecordAsync(
-            string id,
-            OperationAuthorizationRequirement requirement,
-            string actionName)
+        private async Task<CrudRecord?> FindRecordAsync(string id)
         {
-            var record = await _dbContext.CrudRecords.FirstOrDefaultAsync(entry => entry.Id == id);
-            if (record == null)
+            var groupId = GetCurrentGroupId();
+            if (groupId == null)
             {
                 return null;
             }
 
-            var authorizationResult = await _authorizationService.AuthorizeAsync(User, record, requirement);
-            if (authorizationResult.Succeeded)
-            {
-                return record;
-            }
-
-            LogOwnershipAuthorizationFailure(actionName, id, record);
-            return null;
+            return await _dbContext.CrudRecords.FirstOrDefaultAsync(record =>
+                record.Id == id
+                && record.GroupId == groupId);
         }
 
-        private void LogOwnershipAuthorizationFailure(string actionName, string recordId, CrudRecord record)
+        private string? GetCurrentGroupId()
         {
-            string userIdForLog;
-            try
+            var certificate = HttpContext.Connection.ClientCertificate;
+            if (certificate == null)
             {
-                userIdForLog = UserIdentityHelper.GetStableUserId(User);
-            }
-            catch (InvalidOperationException)
-            {
-                userIdForLog = "unknown-authenticated-user";
+                return null;
             }
 
-            var hashedUserId = LoggingHelper.HashPii(userIdForLog);
-            _logger.LogWarning(
-                "Ownership authorization failed for action {Action} on record {RecordId}. UserIdHash={UserIdHash} OwnerIdHash={OwnerIdHash}",
-                SanitizeForLog(actionName),
-                SanitizeForLog(recordId),
-                hashedUserId,
-                LoggingHelper.HashPii(record.OwnerId));
-        }
-
-        private static string SanitizeForLog(string value)
-        {
-            return value.Replace("\r", string.Empty).Replace("\n", string.Empty);
+            var groupAdmin = _groupAccessSettings.FindAuthorizedGroupAdmin(
+                User,
+                certificate.Thumbprint ?? string.Empty,
+                certificate.Issuer);
+            return groupAdmin?.GroupId;
         }
     }
 }

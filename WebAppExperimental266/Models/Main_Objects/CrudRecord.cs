@@ -37,6 +37,9 @@ namespace WebAppExperimental266.Models.Main_Objects
         [StringLength(256)]
         public string OwnerDisplayName { get; set; } = string.Empty;
 
+        [StringLength(64)]
+        public string GroupId { get; set; } = string.Empty;
+
         public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 
         public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;

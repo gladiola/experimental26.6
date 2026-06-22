@@ -10,13 +10,16 @@ namespace WebAppExperimental266.Services
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly AdminCertificateSettings _adminCertificateSettings;
+        private readonly GroupAccessSettings _groupAccessSettings;
 
         public CrudRecordAuthorizationHandler(
             IHttpContextAccessor httpContextAccessor,
-            AdminCertificateSettings adminCertificateSettings)
+            AdminCertificateSettings adminCertificateSettings,
+            GroupAccessSettings groupAccessSettings)
         {
             _httpContextAccessor = httpContextAccessor;
             _adminCertificateSettings = adminCertificateSettings;
+            _groupAccessSettings = groupAccessSettings;
         }
 
         protected override Task HandleRequirementAsync(
@@ -34,11 +37,16 @@ namespace WebAppExperimental266.Services
                 resource.OwnerId,
                 UserIdentityHelper.GetStableUserId(context.User),
                 StringComparison.OrdinalIgnoreCase);
+            var certificateIssuer = _httpContextAccessor.HttpContext?.Connection.ClientCertificate?.Issuer;
+            var groupId = _groupAccessSettings.ResolveUserGroup(context.User, certificateIssuer);
+            var isInSameGroup = !string.IsNullOrWhiteSpace(groupId)
+                && !string.IsNullOrWhiteSpace(resource.GroupId)
+                && string.Equals(groupId, resource.GroupId, StringComparison.OrdinalIgnoreCase);
 
             switch (requirement.Name)
             {
                 case nameof(CrudRecordOperations.Read):
-                    if (isOwner || resource.IsPublic)
+                    if (isOwner || resource.IsPublic || isInSameGroup)
                     {
                         context.Succeed(requirement);
                     }

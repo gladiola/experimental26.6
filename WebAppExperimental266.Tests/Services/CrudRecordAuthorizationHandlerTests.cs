@@ -49,6 +49,29 @@ namespace WebAppExperimental266.Tests.Services
         }
 
         [Fact]
+        public async Task HandleAsync_Succeeds_ForSameGroupRead_WhenNotOwner()
+        {
+            var groupSettings = new GroupAccessSettings
+            {
+                UserAssignments =
+                {
+                    new GroupUserAssignment
+                    {
+                        GroupId = "group-a",
+                        UserIdentifiers = new List<string> { "user-2" }
+                    }
+                }
+            };
+            var handler = BuildHandler(new AdminCertificateSettings(), null, BuildUser(("oid", "user-2")), groupSettings);
+            var resource = new CrudRecord { OwnerId = "user-1", IsPublic = false, GroupId = "group-a" };
+            var context = BuildContext(CrudRecordOperations.Read, handler.User, resource);
+
+            await handler.Handler.HandleAsync(context);
+
+            context.HasSucceeded.Should().BeTrue();
+        }
+
+        [Fact]
         public async Task HandleAsync_Succeeds_ForMappedAdmin()
         {
             var certificate = CreateSelfSignedCertificate("CN=Admin CA");
@@ -85,12 +108,13 @@ namespace WebAppExperimental266.Tests.Services
         private static (CrudRecordAuthorizationHandler Handler, ClaimsPrincipal User) BuildHandler(
             AdminCertificateSettings settings,
             X509Certificate2? certificate,
-            ClaimsPrincipal user)
+            ClaimsPrincipal user,
+            GroupAccessSettings? groupSettings = null)
         {
             var httpContext = new DefaultHttpContext();
             httpContext.Connection.ClientCertificate = certificate;
             var accessor = new HttpContextAccessor { HttpContext = httpContext };
-            return (new CrudRecordAuthorizationHandler(accessor, settings), user);
+            return (new CrudRecordAuthorizationHandler(accessor, settings, groupSettings ?? new GroupAccessSettings()), user);
         }
 
         private static ClaimsPrincipal BuildUser(params (string Type, string Value)[] claims)

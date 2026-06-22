@@ -1,0 +1,79 @@
+@model WebAppExperimental266.Models.Main_Objects.CrudRecord
+
+@{
+    ViewData["Title"] = "Group Admin Upload Card Dump";
+    var supportedCardTypes = (string[]?)ViewData["SupportedCardTypes"] ?? Array.Empty<string>();
+}
+
+<div class="upload-page">
+    <div class="upload-card">
+        <div class="d-flex align-items-start gap-3 mb-4">
+            <div class="upload-icon-box">⤴</div>
+            <div>
+                <h1 class="h3 mb-1">Group Admin Upload Card Dump</h1>
+                <p class="text-muted mb-0">Upload a card dump as a group-admin-authorized user.</p>
+            </div>
+        </div>
+
+        <form asp-action="Create" method="post" enctype="multipart/form-data">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="mb-4">
+                <label asp-for="CardType" class="form-label">Supported Card Types</label>
+                <select asp-for="CardType" class="form-select">
+                    @foreach (var cardType in supportedCardTypes)
+                    {
+                        <option value="@cardType">@cardType</option>
+                    }
+                </select>
+                <span asp-validation-for="CardType" class="text-danger"></span>
+                <div class="mt-3 p-3 bg-light rounded border">
+                    <div>✓ MIFARE Classic</div>
+                    <div>✓ HITAG</div>
+                    <div>✓ iCLASS</div>
+                    <div>✓ T55x7</div>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="uploadFile" class="form-label">Card Dump File</label>
+                <input type="file" id="uploadFile" name="uploadFile" class="form-control" accept=".json,application/json" required />
+                <div class="form-text">JSON files up to 10MB.</div>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Title" class="form-label">Title (optional)</label>
+                <input asp-for="Title" class="form-control" placeholder="Optional upload title" />
+                <span asp-validation-for="Title" class="text-danger"></span>
+            </div>
+            <div class="mb-3">
+                <label asp-for="Description" class="form-label">Comment (optional)</label>
+                <textarea asp-for="Description" class="form-control" rows="4" placeholder="Add a comment about this card dump..."></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+
+            <div class="form-check mb-3">
+                <input asp-for="IsPublic" class="form-check-input" />
+                <label asp-for="IsPublic" class="form-check-label">Make this card dump public</label>
+            </div>
+
+            <div class="upload-warning mb-4">
+                <div class="form-check">
+                    <input asp-for="UploadPermissionConfirmed" class="form-check-input" required />
+                    <label asp-for="UploadPermissionConfirmed" class="form-check-label">
+                        I confirm that I have permission to upload this card dump and either own the card or have explicit authorization from the owner.
+                    </label>
+                </div>
+                <span asp-validation-for="UploadPermissionConfirmed" class="text-danger"></span>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center">
+                <a asp-action="Index" class="btn btn-outline-secondary">Back</a>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
