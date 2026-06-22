@@ -2,51 +2,167 @@
 
 @{
     ViewData["Title"] = "Admin Records";
+    var cardTypes = Model.Select(x => x.CardType).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
+    var owners = Model.Select(x => x.OwnerDisplayName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
 }
 
-<h1>Admin Records</h1>
-<p class="text-muted">This view is available only after the normal login flow and a successful admin certificate check.</p>
-<p>
-    <a asp-action="Create" class="btn btn-primary">Admin Upload</a>
-</p>
+<div class="upload-page admin-upload-page">
+    <div class="upload-card mb-4">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+            <div>
+                <h1 class="h3 mb-1">Admin Records</h1>
+                <p class="text-muted mb-0">This view is available only after the normal login flow and a successful admin certificate check.</p>
+            </div>
+            <a asp-action="Create" class="btn btn-primary">Admin Upload</a>
+        </div>
+    </div>
 
-<table class="table">
-    <thead>
-        <tr>
-            <th>Owner</th>
-            <th>Title</th>
-            <th>Type</th>
-            <th>File</th>
-            <th>Public</th>
-            <th>Updated</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-@foreach (var item in Model)
-{
-        <tr>
-            <td>@item.OwnerDisplayName</td>
-            <td>@item.Title</td>
-            <td>@item.CardType</td>
-            <td>
-                @if (!string.IsNullOrWhiteSpace(item.UploadedFileName))
-                {
-                    <a asp-action="Download" asp-route-id="@item.Id">@item.UploadedFileName</a>
+    <div class="upload-card">
+        <div class="row g-2 align-items-end mb-3 dynamic-filter-panel" data-filter-scope="admin-records">
+            <div class="col-12 col-xl-4">
+                <label class="form-label mb-1" for="admin-search-input">Search</label>
+                <input id="admin-search-input" type="search" class="form-control" placeholder="Owner, title, type, filename..." />
+            </div>
+            <div class="col-6 col-xl-3">
+                <label class="form-label mb-1" for="admin-owner-filter">Owner</label>
+                <select id="admin-owner-filter" class="form-select">
+                    <option value="">All</option>
+                    @foreach (var owner in owners)
+                    {
+                        <option value="@owner">@owner</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-xl-2">
+                <label class="form-label mb-1" for="admin-type-filter">Card type</label>
+                <select id="admin-type-filter" class="form-select">
+                    <option value="">All</option>
+                    @foreach (var cardType in cardTypes)
+                    {
+                        <option value="@cardType">@cardType</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-xl-3">
+                <label class="form-label mb-1" for="admin-visibility-filter">Visibility</label>
+                <select id="admin-visibility-filter" class="form-select">
+                    <option value="">All</option>
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <div class="small text-muted">
+                    Showing <span id="admin-visible-count">@Model.Count()</span> of <span id="admin-total-count">@Model.Count()</span> records
+                </div>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Owner</th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>File</th>
+                        <th>Public</th>
+                        <th>Updated</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="admin-table-body">
+                    @foreach (var item in Model)
+                    {
+                        var fileName = string.IsNullOrWhiteSpace(item.UploadedFileName) ? string.Empty : item.UploadedFileName;
+                        var ownerName = item.OwnerDisplayName ?? string.Empty;
+                        var visibility = item.IsPublic ? "public" : "private";
+                        var searchableText = $"{ownerName} {item.Title} {item.CardType} {fileName} {visibility}";
+                        <tr data-search="@searchableText.ToLowerInvariant()"
+                            data-owner="@ownerName"
+                            data-card-type="@item.CardType"
+                            data-visibility="@visibility">
+                            <td>@item.OwnerDisplayName</td>
+                            <td>@item.Title</td>
+                            <td>@item.CardType</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(item.UploadedFileName))
+                                {
+                                    <a asp-action="Download" asp-route-id="@item.Id">@item.UploadedFileName</a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">None</span>
+                                }
+                            </td>
+                            <td>@(item.IsPublic ? "Yes" : "No")</td>
+                            <td>@item.UpdatedUtc.ToString("u")</td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
+                                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
+                                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p id="admin-empty-state" class="text-muted mt-3 mb-0 d-none">No records match the current filters.</p>
+    </div>
+</div>
+
+@section Scripts {
+    <script nonce="@Context.Items["Nonce"]">
+        (() => {
+            const searchInput = document.getElementById('admin-search-input');
+            const ownerFilter = document.getElementById('admin-owner-filter');
+            const typeFilter = document.getElementById('admin-type-filter');
+            const visibilityFilter = document.getElementById('admin-visibility-filter');
+            const tableBody = document.getElementById('admin-table-body');
+            const visibleCount = document.getElementById('admin-visible-count');
+            const totalCount = document.getElementById('admin-total-count');
+            const emptyState = document.getElementById('admin-empty-state');
+
+            if (!searchInput || !ownerFilter || !typeFilter || !visibilityFilter || !tableBody) {
+                return;
+            }
+
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            totalCount.textContent = String(rows.length);
+
+            const applyFilters = () => {
+                const searchTerm = searchInput.value.trim().toLowerCase();
+                const selectedOwner = ownerFilter.value;
+                const selectedType = typeFilter.value;
+                const selectedVisibility = visibilityFilter.value;
+                let matchedCount = 0;
+
+                for (const row of rows) {
+                    const searchText = row.dataset.search ?? '';
+                    const owner = row.dataset.owner ?? '';
+                    const cardType = row.dataset.cardType ?? '';
+                    const visibility = row.dataset.visibility ?? '';
+
+                    const matchesSearch = !searchTerm || searchText.includes(searchTerm);
+                    const matchesOwner = !selectedOwner || owner === selectedOwner;
+                    const matchesType = !selectedType || cardType === selectedType;
+                    const matchesVisibility = !selectedVisibility || visibility === selectedVisibility;
+                    const isVisible = matchesSearch && matchesOwner && matchesType && matchesVisibility;
+
+                    row.classList.toggle('d-none', !isVisible);
+                    if (isVisible) {
+                        matchedCount++;
+                    }
                 }
-                else
-                {
-                    <span class="text-muted">None</span>
-                }
-            </td>
-            <td>@(item.IsPublic ? "Yes" : "No")</td>
-            <td>@item.UpdatedUtc.ToString("u")</td>
-            <td class="text-end">
-                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
-            </td>
-        </tr>
+
+                visibleCount.textContent = String(matchedCount);
+                emptyState.classList.toggle('d-none', matchedCount !== 0);
+            };
+
+            searchInput.addEventListener('input', applyFilters);
+            ownerFilter.addEventListener('change', applyFilters);
+            typeFilter.addEventListener('change', applyFilters);
+            visibilityFilter.addEventListener('change', applyFilters);
+        })();
+    </script>
 }
-    </tbody>
-</table>

@@ -2,49 +2,147 @@
 
 @{
     ViewData["Title"] = "My Records";
+    var cardTypes = Model.Select(x => x.CardType).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
 }
 
-<h1>My Records</h1>
+<div class="upload-page">
+    <div class="upload-card mb-4">
+        <div class="d-flex align-items-start justify-content-between flex-wrap gap-3">
+            <div>
+                <h1 class="h3 mb-1">My Records</h1>
+                <p class="text-muted mb-0">Instantly search and filter your records in one place.</p>
+            </div>
+            <a asp-action="Create" class="btn btn-primary">Upload</a>
+        </div>
+    </div>
 
-<p>
-    <a asp-action="Create" class="btn btn-primary">Upload</a>
-</p>
+    <div class="upload-card">
+        <div class="row g-2 align-items-end mb-3 dynamic-filter-panel" data-filter-scope="records">
+            <div class="col-12 col-lg-6">
+                <label class="form-label mb-1" for="records-search-input">Search</label>
+                <input id="records-search-input" type="search" class="form-control" placeholder="Title, type, filename..." />
+            </div>
+            <div class="col-6 col-lg-3">
+                <label class="form-label mb-1" for="records-type-filter">Card type</label>
+                <select id="records-type-filter" class="form-select">
+                    <option value="">All</option>
+                    @foreach (var cardType in cardTypes)
+                    {
+                        <option value="@cardType">@cardType</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-lg-3">
+                <label class="form-label mb-1" for="records-visibility-filter">Visibility</label>
+                <select id="records-visibility-filter" class="form-select">
+                    <option value="">All</option>
+                    <option value="public">Public</option>
+                    <option value="private">Private</option>
+                </select>
+            </div>
+            <div class="col-12">
+                <div class="small text-muted">
+                    Showing <span id="records-visible-count">@Model.Count()</span> of <span id="records-total-count">@Model.Count()</span> records
+                </div>
+            </div>
+        </div>
 
-<table class="table">
-    <thead>
-        <tr>
-            <th>Title</th>
-            <th>Card Type</th>
-            <th>File</th>
-            <th>Public</th>
-            <th>Updated</th>
-            <th></th>
-        </tr>
-    </thead>
-    <tbody>
-@foreach (var item in Model)
-{
-        <tr>
-            <td>@item.Title</td>
-            <td>@item.CardType</td>
-            <td>
-                @if (!string.IsNullOrWhiteSpace(item.UploadedFileName))
-                {
-                    <a asp-action="Download" asp-route-id="@item.Id">@item.UploadedFileName</a>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Card Type</th>
+                        <th>File</th>
+                        <th>Public</th>
+                        <th>Updated</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="records-table-body">
+                    @foreach (var item in Model)
+                    {
+                        var fileName = string.IsNullOrWhiteSpace(item.UploadedFileName) ? string.Empty : item.UploadedFileName;
+                        var visibility = item.IsPublic ? "public" : "private";
+                        var searchableText = $"{item.Title} {item.CardType} {fileName} {visibility}";
+                        <tr data-search="@searchableText.ToLowerInvariant()"
+                            data-card-type="@item.CardType"
+                            data-visibility="@visibility">
+                            <td>@item.Title</td>
+                            <td>@item.CardType</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(item.UploadedFileName))
+                                {
+                                    <a asp-action="Download" asp-route-id="@item.Id">@item.UploadedFileName</a>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">None</span>
+                                }
+                            </td>
+                            <td>@(item.IsPublic ? "Yes" : "No")</td>
+                            <td>@item.UpdatedUtc.ToString("u")</td>
+                            <td class="text-end">
+                                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
+                                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
+                                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <p id="records-empty-state" class="text-muted mt-3 mb-0 d-none">No records match the current filters.</p>
+    </div>
+</div>
+
+@section Scripts {
+    <script nonce="@Context.Items["Nonce"]">
+        (() => {
+            const searchInput = document.getElementById('records-search-input');
+            const typeFilter = document.getElementById('records-type-filter');
+            const visibilityFilter = document.getElementById('records-visibility-filter');
+            const tableBody = document.getElementById('records-table-body');
+            const visibleCount = document.getElementById('records-visible-count');
+            const totalCount = document.getElementById('records-total-count');
+            const emptyState = document.getElementById('records-empty-state');
+
+            if (!searchInput || !typeFilter || !visibilityFilter || !tableBody) {
+                return;
+            }
+
+            const rows = Array.from(tableBody.querySelectorAll('tr'));
+            totalCount.textContent = String(rows.length);
+
+            const applyFilters = () => {
+                const searchTerm = searchInput.value.trim().toLowerCase();
+                const selectedType = typeFilter.value;
+                const selectedVisibility = visibilityFilter.value;
+                let matchedCount = 0;
+
+                for (const row of rows) {
+                    const searchText = row.dataset.search ?? '';
+                    const cardType = row.dataset.cardType ?? '';
+                    const visibility = row.dataset.visibility ?? '';
+
+                    const matchesSearch = !searchTerm || searchText.includes(searchTerm);
+                    const matchesType = !selectedType || cardType === selectedType;
+                    const matchesVisibility = !selectedVisibility || visibility === selectedVisibility;
+                    const isVisible = matchesSearch && matchesType && matchesVisibility;
+
+                    row.classList.toggle('d-none', !isVisible);
+                    if (isVisible) {
+                        matchedCount++;
+                    }
                 }
-                else
-                {
-                    <span class="text-muted">None</span>
-                }
-            </td>
-            <td>@(item.IsPublic ? "Yes" : "No")</td>
-            <td>@item.UpdatedUtc.ToString("u")</td>
-            <td class="text-end">
-                <a asp-action="Details" asp-route-id="@item.Id">Details</a> |
-                <a asp-action="Edit" asp-route-id="@item.Id">Edit</a> |
-                <a asp-action="Delete" asp-route-id="@item.Id">Delete</a>
-            </td>
-        </tr>
+
+                visibleCount.textContent = String(matchedCount);
+                emptyState.classList.toggle('d-none', matchedCount !== 0);
+            };
+
+            searchInput.addEventListener('input', applyFilters);
+            typeFilter.addEventListener('change', applyFilters);
+            visibilityFilter.addEventListener('change', applyFilters);
+        })();
+    </script>
 }
-    </tbody>
-</table>
