@@ -37,17 +37,10 @@ namespace WebAppExperimental266.Controllers
             var ownerId = UserIdentityHelper.GetStableUserId(User);
             var certificateIssuer = HttpContext.Connection.ClientCertificate?.Issuer;
             var groupId = _groupAccessSettings.ResolveUserGroup(User, certificateIssuer);
-            var recordsQuery = _dbContext.CrudRecords
-                .Where(record => record.OwnerId == ownerId);
-
-            if (!string.IsNullOrWhiteSpace(groupId))
-            {
-                recordsQuery = _dbContext.CrudRecords.Where(record =>
+            var records = await _dbContext.CrudRecords
+                .Where(record =>
                     record.OwnerId == ownerId
-                    || record.GroupId == groupId);
-            }
-
-            var records = await recordsQuery
+                    || (!string.IsNullOrWhiteSpace(groupId) && record.GroupId == groupId))
                 .OrderByDescending(record => record.UpdatedUtc)
                 .ToListAsync();
 
