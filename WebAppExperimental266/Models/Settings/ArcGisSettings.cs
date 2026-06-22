@@ -6,20 +6,22 @@ namespace WebAppExperimental266.Models.Settings
     /// </summary>
     public class ArcGisSettings
     {
+        private const string DefaultMapUrl = "https://harvard-cga.maps.arcgis.com/apps/mapviewer/index.html";
+
         /// <summary>URL shown to unauthenticated visitors.</summary>
-        public string PublicMapUrl { get; set; } = "https://harvard-cga.maps.arcgis.com/apps/mapviewer/index.html";
+        public string PublicMapUrl { get; set; } = DefaultMapUrl;
 
         /// <summary>Display label used when rendering the public map.</summary>
         public string PublicMapLabel { get; set; } = "Public View";
 
         /// <summary>URL shown to authenticated (non-admin) users.</summary>
-        public string UserMapUrl { get; set; } = "https://harvard-cga.maps.arcgis.com/apps/mapviewer/index.html";
+        public string UserMapUrl { get; set; } = DefaultMapUrl;
 
         /// <summary>Display label used when rendering the user map.</summary>
         public string UserMapLabel { get; set; } = "User View";
 
         /// <summary>URL shown to authenticated administrators.</summary>
-        public string AdminMapUrl { get; set; } = "https://harvard-cga.maps.arcgis.com/apps/mapviewer/index.html";
+        public string AdminMapUrl { get; set; } = DefaultMapUrl;
 
         /// <summary>Display label used when rendering the admin map.</summary>
         public string AdminMapLabel { get; set; } = "Admin View";
