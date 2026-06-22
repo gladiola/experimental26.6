@@ -2,7 +2,8 @@
 
 @{
     ViewData["Title"] = "My Records";
-    var cardTypes = Model.Select(x => x.CardType).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
+    var records = Model.ToList();
+    var cardTypes = records.Select(x => x.CardType).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
 }
 
 <div class="upload-page">
@@ -42,7 +43,7 @@
             </div>
             <div class="col-12">
                 <div class="small text-muted">
-                    Showing <span id="records-visible-count">@Model.Count()</span> of <span id="records-total-count">@Model.Count()</span> records
+                    Showing <span id="records-visible-count">@records.Count</span> of <span id="records-total-count">@records.Count</span> records
                 </div>
             </div>
         </div>
@@ -60,7 +61,7 @@
                     </tr>
                 </thead>
                 <tbody id="records-table-body">
-                    @foreach (var item in Model)
+                    @foreach (var item in records)
                     {
                         var fileName = string.IsNullOrWhiteSpace(item.UploadedFileName) ? string.Empty : item.UploadedFileName;
                         var visibility = item.IsPublic ? "public" : "private";

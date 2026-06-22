@@ -2,8 +2,9 @@
 
 @{
     ViewData["Title"] = "Admin Records";
-    var cardTypes = Model.Select(x => x.CardType).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
-    var owners = Model.Select(x => x.OwnerDisplayName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
+    var records = Model.ToList();
+    var cardTypes = records.Select(x => x.CardType).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
+    var owners = records.Select(x => x.OwnerDisplayName).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToList();
 }
 
 <div class="upload-page admin-upload-page">
@@ -53,7 +54,7 @@
             </div>
             <div class="col-12">
                 <div class="small text-muted">
-                    Showing <span id="admin-visible-count">@Model.Count()</span> of <span id="admin-total-count">@Model.Count()</span> records
+                    Showing <span id="admin-visible-count">@records.Count</span> of <span id="admin-total-count">@records.Count</span> records
                 </div>
             </div>
         </div>
@@ -72,7 +73,7 @@
                     </tr>
                 </thead>
                 <tbody id="admin-table-body">
-                    @foreach (var item in Model)
+                    @foreach (var item in records)
                     {
                         var fileName = string.IsNullOrWhiteSpace(item.UploadedFileName) ? string.Empty : item.UploadedFileName;
                         var ownerName = item.OwnerDisplayName ?? string.Empty;
