@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.IO;
 using WebAppExperimental266.Data;
 using WebAppExperimental266.Models.Main_Objects;
 using WebAppExperimental266.Services;
@@ -45,27 +46,84 @@ namespace WebAppExperimental266.Controllers
             return View(record);
         }
 
+        [HttpGet("/upload")]
         public IActionResult Create()
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Create");
+            ViewData["SupportedCardTypes"] = UploadPolicy.SupportedCardTypes;
             return View();
         }
 
-        [HttpPost]
+        [HttpPost("/upload")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Title,Description")] CrudRecord input)
+        public async Task<IActionResult> Create([Bind("Title,Description,CardType,IsPublic,UploadPermissionConfirmed")] CrudRecord input, IFormFile? uploadFile)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.CreatePost");
+            ViewData["SupportedCardTypes"] = UploadPolicy.SupportedCardTypes;
+
+            if (uploadFile is null)
+            {
+                ModelState.AddModelError(string.Empty, "Please choose a JSON file to upload.");
+            }
+            else if (!string.Equals(Path.GetExtension(uploadFile.FileName), ".json", StringComparison.OrdinalIgnoreCase))
+            {
+                ModelState.AddModelError(string.Empty, "Only .json files are supported.");
+            }
+
+            if (!input.UploadPermissionConfirmed)
+            {
+                ModelState.AddModelError(nameof(input.UploadPermissionConfirmed), "You must confirm upload permission.");
+            }
+
+            if (!UploadPolicy.IsSupportedCardType(input.CardType))
+            {
+                ModelState.AddModelError(nameof(input.CardType), "Select a supported card type.");
+            }
+
+            byte[]? uploadedBytes = null;
+            string? uploadedFileName = null;
+            string? uploadedContentType = null;
+            long? uploadedFileSize = null;
+            if (uploadFile is not null)
+            {
+                if (uploadFile.Length <= 0)
+                {
+                    ModelState.AddModelError(string.Empty, "The selected file is empty.");
+                }
+                else if (uploadFile.Length > UploadPolicy.MaxUploadBytes)
+                {
+                    ModelState.AddModelError(string.Empty, $"Files larger than {UploadPolicy.MaxUploadBytes / (1024 * 1024)} MB are not allowed.");
+                }
+                else
+                {
+                    uploadedBytes = await UploadPolicy.ReadFileBytesAsync(uploadFile, HttpContext.RequestAborted);
+                    uploadedFileSize = uploadFile.Length;
+                    uploadedFileName = Path.GetFileName(uploadFile.FileName);
+                    uploadedContentType = string.IsNullOrWhiteSpace(uploadFile.ContentType)
+                        ? "application/octet-stream"
+                        : uploadFile.ContentType;
+                }
+            }
+
             if (!ModelState.IsValid)
             {
                 return View(input);
             }
 
             var now = DateTime.UtcNow;
+            var trimmedTitle = input.Title?.Trim();
+            var fallbackTitle = string.IsNullOrWhiteSpace(uploadedFileName) ? "Untitled Upload" : uploadedFileName;
             var record = new CrudRecord
             {
-                Title = input.Title,
-                Description = input.Description,
+                Title = string.IsNullOrWhiteSpace(trimmedTitle) ? fallbackTitle : trimmedTitle,
+                Description = input.Description ?? string.Empty,
+                UploadedFileName = uploadedFileName,
+                UploadedContentType = uploadedContentType,
+                UploadedFileSizeBytes = uploadedFileSize,
+                UploadedFileContent = uploadedBytes,
+                CardType = string.IsNullOrWhiteSpace(input.CardType) ? "MIFARE Classic" : input.CardType,
+                IsPublic = input.IsPublic,
+                UploadPermissionConfirmed = input.UploadPermissionConfirmed,
                 OwnerId = UserIdentityHelper.GetStableUserId(User),
                 OwnerDisplayName = UserIdentityHelper.GetDisplayName(User),
                 CreatedUtc = now,
@@ -86,6 +144,36 @@ namespace WebAppExperimental266.Controllers
             _logger.LogInformation("Created CRUD record {RecordId} for user {UserId}", record.Id, LoggingHelper.HashPii(record.OwnerId));
 
             return RedirectToAction(nameof(Index));
+        }
+
+        [AllowAnonymous]
+        [HttpGet]
+        public async Task<IActionResult> Download(string id)
+        {
+            LoggingHelper.TrackFunctionCall(HttpContext, "RecordsController.Download");
+            CrudRecord? record;
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                var ownerId = UserIdentityHelper.GetStableUserId(User);
+                record = await _dbContext.CrudRecords.FirstOrDefaultAsync(x => x.Id == id && (x.OwnerId == ownerId || x.IsPublic));
+            }
+            else
+            {
+                record = await _dbContext.CrudRecords.FirstOrDefaultAsync(x => x.Id == id && x.IsPublic);
+            }
+            if (record?.UploadedFileContent == null || record.UploadedFileContent.Length == 0)
+            {
+                return NotFound();
+            }
+
+            var contentType = string.IsNullOrWhiteSpace(record.UploadedContentType)
+                ? "application/octet-stream"
+                : record.UploadedContentType;
+            var fileName = string.IsNullOrWhiteSpace(record.UploadedFileName)
+                ? "upload.bin"
+                : record.UploadedFileName;
+
+            return File(record.UploadedFileContent, contentType, fileName);
         }
 
         public async Task<IActionResult> Edit(string id)

@@ -13,11 +13,31 @@
     <dt class="col-sm-2">Description</dt>
     <dd class="col-sm-10">@Model.Description</dd>
 
+    <dt class="col-sm-2">Card Type</dt>
+    <dd class="col-sm-10">@Model.CardType</dd>
+
+    <dt class="col-sm-2">Public</dt>
+    <dd class="col-sm-10">@(Model.IsPublic ? "Yes" : "No")</dd>
+
     <dt class="col-sm-2">Created</dt>
     <dd class="col-sm-10">@Model.CreatedUtc.ToString("u")</dd>
 
     <dt class="col-sm-2">Updated</dt>
     <dd class="col-sm-10">@Model.UpdatedUtc.ToString("u")</dd>
+
+    <dt class="col-sm-2">Uploaded File</dt>
+    <dd class="col-sm-10">
+        @if (!string.IsNullOrWhiteSpace(Model.UploadedFileName))
+        {
+            <span>@Model.UploadedFileName (@Model.UploadedFileSizeBytes bytes)</span>
+            <span> - </span>
+            <a asp-action="Download" asp-route-id="@Model.Id">Download</a>
+        }
+        else
+        {
+            <span>None</span>
+        }
+    </dd>
 </dl>
 
 <div>
