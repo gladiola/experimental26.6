@@ -6,12 +6,18 @@
 
 <h1>Admin Records</h1>
 <p class="text-muted">This view is available only after the normal login flow and a successful admin certificate check.</p>
+<p>
+    <a asp-action="Create" class="btn btn-primary">Admin Upload</a>
+</p>
 
 <table class="table">
     <thead>
         <tr>
             <th>Owner</th>
             <th>Title</th>
+            <th>Type</th>
+            <th>File</th>
+            <th>Public</th>
             <th>Updated</th>
             <th></th>
         </tr>
@@ -22,6 +28,18 @@
         <tr>
             <td>@item.OwnerDisplayName</td>
             <td>@item.Title</td>
+            <td>@item.CardType</td>
+            <td>
+                @if (!string.IsNullOrWhiteSpace(item.UploadedFileName))
+                {
+                    <a asp-action="Download" asp-route-id="@item.Id">@item.UploadedFileName</a>
+                }
+                else
+                {
+                    <span class="text-muted">None</span>
+                }
+            </td>
+            <td>@(item.IsPublic ? "Yes" : "No")</td>
             <td>@item.UpdatedUtc.ToString("u")</td>
             <td class="text-end">
                 <a asp-action="Details" asp-route-id="@item.Id">Details</a> |

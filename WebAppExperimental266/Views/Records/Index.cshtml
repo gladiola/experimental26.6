@@ -14,6 +14,9 @@
     <thead>
         <tr>
             <th>Title</th>
+            <th>Card Type</th>
+            <th>File</th>
+            <th>Public</th>
             <th>Updated</th>
             <th></th>
         </tr>
@@ -23,6 +26,18 @@
 {
         <tr>
             <td>@item.Title</td>
+            <td>@item.CardType</td>
+            <td>
+                @if (!string.IsNullOrWhiteSpace(item.UploadedFileName))
+                {
+                    <a asp-action="Download" asp-route-id="@item.Id">@item.UploadedFileName</a>
+                }
+                else
+                {
+                    <span class="text-muted">None</span>
+                }
+            </td>
+            <td>@(item.IsPublic ? "Yes" : "No")</td>
             <td>@item.UpdatedUtc.ToString("u")</td>
             <td class="text-end">
                 <a asp-action="Details" asp-route-id="@item.Id">Details</a> |

@@ -2,6 +2,8 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using WebAppExperimental266.Data;
 using WebAppExperimental266.Models;
 using WebAppExperimental266.Services;
 
@@ -10,18 +12,27 @@ namespace WebAppExperimental266.Controllers
     [Authorize]
     public class HomeController : Controller
     {
+        private readonly CrudDbContext _dbContext;
         private readonly ILogger<HomeController> _logger;
 
-        public HomeController(ILogger<HomeController> logger)
+        public HomeController(
+            CrudDbContext dbContext,
+            ILogger<HomeController> logger)
         {
+            _dbContext = dbContext;
             _logger = logger;
         }
 
         [AllowAnonymous]
-        public IActionResult Index()
+        public async Task<IActionResult> Index()
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "HomeController.Index");
-            return View();
+            var publicRecords = await _dbContext.CrudRecords
+                .Where(record => record.IsPublic)
+                .OrderByDescending(record => record.UpdatedUtc)
+                .Take(50)
+                .ToListAsync();
+            return View(publicRecords);
         }
 
         [AllowAnonymous]

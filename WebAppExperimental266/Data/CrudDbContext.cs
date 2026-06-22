@@ -27,6 +27,7 @@ namespace WebAppExperimental266.Data
             entity.Property(record => record.Description).HasMaxLength(4000);
             entity.Property(record => record.UploadedFileName).HasMaxLength(260);
             entity.Property(record => record.UploadedContentType).HasMaxLength(120);
+            entity.Property(record => record.CardType).HasMaxLength(64);
             entity.Property(record => record.OwnerId).HasMaxLength(256).IsRequired();
             entity.Property(record => record.OwnerDisplayName).HasMaxLength(256);
 

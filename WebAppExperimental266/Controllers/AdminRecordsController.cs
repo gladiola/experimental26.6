@@ -11,7 +11,14 @@ namespace WebAppExperimental266.Controllers
     [Authorize(Policy = "AdminCertificate")]
     public class AdminRecordsController : Controller
     {
-        private const long MaxUploadBytes = 5 * 1024 * 1024;
+        private const long MaxUploadBytes = 10 * 1024 * 1024;
+        private static readonly HashSet<string> SupportedCardTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "MIFARE Classic",
+            "HITAG",
+            "iCLASS",
+            "T55x7"
+        };
         private readonly CrudDbContext _dbContext;
         private readonly IAdminCertificateAuditService _auditService;
 
@@ -27,19 +34,35 @@ namespace WebAppExperimental266.Controllers
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "AdminRecordsController.Create");
             _auditService.LogPageAccess(HttpContext, User, "AdminRecords.Create");
+            ViewData["SupportedCardTypes"] = SupportedCardTypes.ToArray();
             return View();
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Title,Description")] CrudRecord input, IFormFile? uploadFile)
+        public async Task<IActionResult> Create([Bind("Title,Description,CardType,IsPublic,UploadPermissionConfirmed")] CrudRecord input, IFormFile? uploadFile)
         {
             LoggingHelper.TrackFunctionCall(HttpContext, "AdminRecordsController.CreatePost");
             _auditService.LogPageAccess(HttpContext, User, "AdminRecords.CreatePost");
+            ViewData["SupportedCardTypes"] = SupportedCardTypes.ToArray();
 
-            if (uploadFile is null && string.IsNullOrWhiteSpace(input.Title) && string.IsNullOrWhiteSpace(input.Description))
+            if (uploadFile is null)
             {
-                ModelState.AddModelError(string.Empty, "Provide text or select a file to upload.");
+                ModelState.AddModelError(string.Empty, "Please choose a JSON file to upload.");
+            }
+            else if (!string.Equals(Path.GetExtension(uploadFile.FileName), ".json", StringComparison.OrdinalIgnoreCase))
+            {
+                ModelState.AddModelError(string.Empty, "Only .json files are supported.");
+            }
+
+            if (!input.UploadPermissionConfirmed)
+            {
+                ModelState.AddModelError(nameof(input.UploadPermissionConfirmed), "You must confirm upload permission.");
+            }
+
+            if (string.IsNullOrWhiteSpace(input.CardType) || !SupportedCardTypes.Contains(input.CardType))
+            {
+                ModelState.AddModelError(nameof(input.CardType), "Select a supported card type.");
             }
 
             byte[]? uploadedBytes = null;
@@ -85,6 +108,9 @@ namespace WebAppExperimental266.Controllers
                 UploadedContentType = uploadedContentType,
                 UploadedFileSizeBytes = uploadedFileSize,
                 UploadedFileContent = uploadedBytes,
+                CardType = string.IsNullOrWhiteSpace(input.CardType) ? "MIFARE Classic" : input.CardType,
+                IsPublic = input.IsPublic,
+                UploadPermissionConfirmed = input.UploadPermissionConfirmed,
                 OwnerId = UserIdentityHelper.GetStableUserId(User),
                 OwnerDisplayName = UserIdentityHelper.GetDisplayName(User),
                 CreatedUtc = now,

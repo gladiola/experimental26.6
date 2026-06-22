@@ -7,7 +7,6 @@ namespace WebAppExperimental266.Models.Main_Objects
         [Required]
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
 
-        [Required]
         [StringLength(120)]
         public string Title { get; set; } = string.Empty;
 
@@ -23,6 +22,13 @@ namespace WebAppExperimental266.Models.Main_Objects
         public long? UploadedFileSizeBytes { get; set; }
 
         public byte[]? UploadedFileContent { get; set; }
+
+        [StringLength(64)]
+        public string CardType { get; set; } = "MIFARE Classic";
+
+        public bool IsPublic { get; set; } = false;
+
+        public bool UploadPermissionConfirmed { get; set; } = false;
 
         [Required]
         [StringLength(256)]
