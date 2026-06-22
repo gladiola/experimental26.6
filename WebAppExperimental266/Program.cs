@@ -103,9 +103,19 @@ namespace WebAppExperimental266
                     featureFlags.EnableMtls);
             }
 
+            // Phase 2.5: YubiKey PIV MFA (application-level second factor)
+            if (featureFlags.EnableYubiKeyRequired)
+            {
+                builder.Services.AddYubiKeyMfaServices(
+                    builder.Configuration,
+                    logger,
+                    featureFlags.EnableYubiKeyRequired);
+            }
+
             builder.Services.AddRazorPagesConfiguration(
                 logger,
-                featureFlags.EnableAuthorization);
+                featureFlags.EnableAuthorization,
+                featureFlags.EnableYubiKeyRequired);
 
             // Phase 3: Azure Services (Advanced)
             if (featureFlags.EnableKeyVault)

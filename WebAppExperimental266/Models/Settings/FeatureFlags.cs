@@ -24,5 +24,8 @@ namespace WebAppExperimental266.Models.Settings
         public bool EnableGcpSecretManager { get; set; } = false;
         public bool EnableGcpFirestore { get; set; } = false;
         public bool EnableGcpIdentity { get; set; } = false;
+
+        // YubiKey MFA
+        public bool EnableYubiKeyRequired { get; set; } = false;
     }
 }

@@ -4,6 +4,7 @@ using Amazon.Runtime;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authentication.Certificate;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Azure.Cosmos;
@@ -161,12 +162,17 @@ namespace WebAppExperimental266.Extensions
         }
 
         /// <summary>
-        /// Configure Razor Pages with authorization policies
+        /// Configure Razor Pages with authorization policies.
+        /// When <paramref name="enableYubiKeyRequired"/> is true the "/Experimental" folder
+        /// is protected by the "YubiKeyMfa" policy (registered via
+        /// <see cref="AddYubiKeyMfaServices"/>), which requires both a valid primary
+        /// identity-provider login and a trusted YubiKey PIV client certificate.
         /// </summary>
         public static IServiceCollection AddRazorPagesConfiguration(
             this IServiceCollection services,
             ILogger logger,
-            bool enableAuthorization = true)
+            bool enableAuthorization = true,
+            bool enableYubiKeyRequired = false)
         {
             services.AddControllersWithViews();
 
@@ -174,8 +180,15 @@ namespace WebAppExperimental266.Extensions
             {
                 if (enableAuthorization)
                 {
-                    options.Conventions.AuthorizeFolder("/Experimental");
-
+                    if (enableYubiKeyRequired)
+                    {
+                        options.Conventions.AuthorizeFolder("/Experimental", "YubiKeyMfa");
+                        logger.LogInformation("Razor Pages: /Experimental protected by YubiKeyMfa policy");
+                    }
+                    else
+                    {
+                        options.Conventions.AuthorizeFolder("/Experimental");
+                    }
                 }
 
                 options.Conventions.AllowAnonymousToPage("/Privacy");
@@ -869,6 +882,101 @@ namespace WebAppExperimental266.Extensions
                     throw;
                 }
             }
+
+            return services;
+        }
+
+        /// <summary>
+        /// Register the "YubiKeyMfa" authorization policy and supporting services.
+        ///
+        /// When enabled, every request reaching a resource protected by the
+        /// "YubiKeyMfa" policy must carry a TLS client certificate that:
+        ///   • Was issued by the OpenBSD admin CA (issuer DN in
+        ///     <c>YubiKeySettings:AllowedCaIssuers</c>).
+        ///   • Optionally has a chain element whose thumbprint appears in
+        ///     <c>YubiKeySettings:AdminCaThumbprints</c>.
+        ///   • Optionally passes a YubiKey attestation issuer check.
+        ///   • Has not been revoked according to the OCSP responder configured in
+        ///     <c>OcspSettings:OcspServerUrl</c>.
+        ///
+        /// Pair this with <see cref="AddMtlsAuthentication"/> (or Kestrel's
+        /// <c>ClientCertificateMode.RequireCertificate</c>) so the certificate is
+        /// presented at the TLS layer before application code runs.
+        /// </summary>
+        public static IServiceCollection AddYubiKeyMfaServices(
+            this IServiceCollection services,
+            IConfiguration configuration,
+            ILogger logger,
+            bool enabled = true)
+        {
+            if (!enabled)
+            {
+                logger.LogWarning("YubiKey MFA is DISABLED");
+                return services;
+            }
+
+            var yubiKeySettings = configuration.GetSection("YubiKeySettings").Get<YubiKeySettings>()
+                ?? throw new InvalidOperationException(
+                    "YubiKeySettings configuration section is missing. " +
+                    "Add a YubiKeySettings section to appsettings.json when EnableYubiKeyRequired is true. " +
+                    "See docs/YUBIKEY_OPENBSD_ADMIN_GUIDE.md and appsettings.template.json for reference.");
+
+            // Register settings
+            services.AddSingleton(yubiKeySettings);
+
+            // Register OCSP service.  OcspValidationService handles the disabled case
+            // internally (returns valid when EnableOcspValidation = false), so we always
+            // register it.  The OCSP responder URL should point at the OpenBSD host.
+            var ocspSettings = configuration.GetSection("OcspSettings").Get<OcspSettings>()
+                ?? new OcspSettings();
+            services.AddSingleton(ocspSettings);
+            services.AddHttpClient();
+            services.AddSingleton<IOcspValidationService>(sp =>
+            {
+                var factory = sp.GetRequiredService<IHttpClientFactory>();
+                var ocspLogger = sp.GetRequiredService<ILogger<OcspValidationService>>();
+                return new OcspValidationService(ocspLogger, ocspSettings, factory.CreateClient("ocsp"));
+            });
+
+            // IHttpContextAccessor is needed by YubiKeyRequirementHandler to read the
+            // client certificate from the active TLS connection.
+            services.AddHttpContextAccessor();
+
+            // Register the authorization handler
+            services.AddSingleton<IAuthorizationHandler, YubiKeyRequirementHandler>();
+
+            // Register the named policy.  RequireAuthenticatedUser ensures that the
+            // primary identity-provider login (Azure AD / Cognito / GCP) has already
+            // succeeded before the YubiKey requirement is evaluated.
+            services.AddAuthorization(options =>
+            {
+                options.AddPolicy("YubiKeyMfa", policy =>
+                    policy.RequireAuthenticatedUser()
+                          .AddRequirements(new YubiKeyRequirement()));
+            });
+
+            if (yubiKeySettings.AllowedCaIssuers.Count == 0)
+            {
+                logger.LogWarning(
+                    "YubiKey MFA: YubiKeySettings:AllowedCaIssuers is empty. " +
+                    "All certificate issuers will be accepted. " +
+                    "Populate AllowedCaIssuers with the OpenBSD admin CA DN to restrict access.");
+            }
+            else
+            {
+                logger.LogInformation(
+                    "YubiKey MFA: Allowed admin CA issuers: [{Issuers}]",
+                    string.Join(", ", yubiKeySettings.AllowedCaIssuers));
+            }
+
+            if (yubiKeySettings.RequireYubiKeyAttestation)
+            {
+                logger.LogInformation(
+                    "YubiKey MFA: Attestation check ENABLED (expected issuer fragment: '{Issuer}')",
+                    yubiKeySettings.YubiKeyAttestationIssuer ?? "(not set)");
+            }
+
+            logger.LogInformation("YubiKey MFA services and 'YubiKeyMfa' authorization policy registered");
 
             return services;
         }
