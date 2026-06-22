@@ -13,7 +13,7 @@ namespace WebAppExperimental266.Tests.Controllers
                 .SingleOrDefault();
 
             attribute.Should().NotBeNull();
-            attribute!.Policy.Should().BeNull();
+            attribute!.Policy.Should().Be("AuthenticatedUser");
         }
 
         [Fact]

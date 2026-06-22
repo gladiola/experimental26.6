@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization.Policy;
 using Microsoft.EntityFrameworkCore;
 using WebAppExperimental266.Data;
 using WebAppExperimental266.Models.Settings;
@@ -81,12 +82,19 @@ namespace WebAppExperimental266.Extensions
             services.AddHttpContextAccessor();
             services.AddSingleton<IAdminCertificateAuditService, AdminCertificateAuditService>();
             services.AddSingleton<IAuthorizationHandler, AdminCertificateRequirementHandler>();
+            services.AddSingleton<IAuthorizationHandler, CrudRecordAuthorizationHandler>();
+            services.AddSingleton<IAuthorizationHandler, AuthenticatedUserRequirementHandler>();
+            services.AddSingleton<IAuthorizationMiddlewareResultHandler, AdminRouteNotFoundAuthorizationResultHandler>();
 
             services.AddAuthorization(options =>
             {
                 options.AddPolicy("AdminCertificate", policy =>
                     policy.RequireAuthenticatedUser()
                           .AddRequirements(new AdminCertificateRequirement()));
+
+                options.AddPolicy("AuthenticatedUser", policy =>
+                    policy.RequireAuthenticatedUser()
+                          .AddRequirements(new AuthenticatedUserRequirement()));
             });
 
             if (settings.AllowedIssuers.Count == 0)

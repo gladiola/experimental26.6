@@ -4,6 +4,13 @@ namespace WebAppExperimental266.Services
 {
     public static class UserIdentityHelper
     {
+        private static readonly string[] StableClaimTypes =
+        {
+            "oid",
+            "sub",
+            ClaimTypes.NameIdentifier
+        };
+
         private static readonly string[] CandidateClaimTypes =
         {
             "oid",
@@ -17,9 +24,22 @@ namespace WebAppExperimental266.Services
 
         public static string GetStableUserId(ClaimsPrincipal user)
         {
-            return GetCandidateIdentifiers(user).FirstOrDefault()
-                ?? user.Identity?.Name
-                ?? "anonymous";
+            var stableIdentifier = StableClaimTypes
+                .Select(claimType => user.FindFirstValue(claimType))
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+
+            if (!string.IsNullOrWhiteSpace(stableIdentifier))
+            {
+                return stableIdentifier;
+            }
+
+            if (user.Identity?.IsAuthenticated == true)
+            {
+                throw new InvalidOperationException(
+                    "No stable identity claim (oid, sub, nameidentifier) was found for the authenticated user.");
+            }
+
+            return "anonymous";
         }
 
         public static IReadOnlyList<string> GetCandidateIdentifiers(ClaimsPrincipal user)
