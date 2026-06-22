@@ -21,4 +21,7 @@
   <data name="Language" xml:space="preserve">
     <value>Harshe</value>
   </data>
+  <data name="NavAboutUs" xml:space="preserve">
+    <value>Game da mu</value>
+  </data>
 </root>
