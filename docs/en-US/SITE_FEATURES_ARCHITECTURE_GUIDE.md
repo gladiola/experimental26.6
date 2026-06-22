@@ -2,13 +2,14 @@
 
 This guide documents the current structure of the site, the roles that are actually wired into the repository, the pages and assets those roles activate, the most common request flows, the certificate-authority processes behind privileged access, and how the automated tests interact with the application.
 
-> **Current-scope note:** The repository currently implements **public**, **authenticated user**, **site admin (admin certificate)**, and **YubiKey MFA policy** flows. A dedicated **group admin** role is **not implemented in the current checkout**, and the `/Experimental/*` YubiKey policy hook exists even though no Razor Pages currently live under that folder.
+> **Current-scope note:** The repository currently implements **public**, **authenticated user**, **site admin (admin certificate)**, **group admin (group-scoped certificate)**, and **YubiKey MFA policy** flows. The `/Experimental/*` YubiKey policy hook exists even though no Razor Pages currently live under that folder.
 
 ## Feature summary
 
 - Public visitors can browse public card dumps, open ArcGIS maps, switch language, and download public files.
 - Authenticated users can sign in through an OIDC provider and manage their own records.
 - Site admins must pass the normal login flow **and** present a mapped admin client certificate to access the admin-records surface.
+- Group admins must pass the normal login flow **and** present a mapped group-admin client certificate to access group-scoped records.
 - YubiKey MFA is modeled as a second factor for `/Experimental/*`: a signed-in user must also present a trusted YubiKey PIV certificate and pass OCSP validation.
 - The app can integrate with Azure Key Vault, Cosmos DB, Blob Storage, AWS services, and GCP services through feature flags.
 - Tests are run with `dotnet test`; they are not executed during plain compilation.
@@ -21,17 +22,18 @@ This guide documents the current structure of the site, the roles that are actua
 | Authenticated user | Yes | OIDC login (Azure AD, AWS Cognito, or GCP Identity) | My Records, Upload, owner Details/Edit/Delete | Auth cookie, CRUD owner queries, inline filters, user ArcGIS URL |
 | Site admin | Yes | OIDC login + `AdminCertificate` policy | Admin Records CRUD | Client certificate, audit logging, full CRUD, admin ArcGIS URL |
 | YubiKey MFA user | Policy only | OIDC login + `YubiKeyMfa` policy | `/Experimental/*` if pages are added | YubiKey PIV certificate, OCSP, optional attestation checks |
-| Group admin | No | Not implemented | None | None |
+| Group admin | Yes | OIDC login + `GroupAdminCertificate` policy | Group Admin Records CRUD | Client certificate mapped to group/user identity, group-scoped CRUD, audit logging |
 
 ## Diagram 1 — whole-site structure
 
 ![Whole-site structure](diagrams/site-structure.svg)
 
-The site surface is centered on three implemented controller areas:
+The site surface is centered on four implemented controller areas:
 
 - `HomeController` for public content and role-based map selection.
 - `RecordsController` for owner-scoped CRUD actions after sign-in.
 - `AdminRecordsController` for admin-scoped CRUD actions after both primary login and certificate validation.
+- `GroupAdminRecordsController` for group-scoped CRUD actions after both primary login and group-admin certificate validation.
 
 The repo also wires a YubiKey policy to `/Experimental/*`, but there are no Razor Pages under `Pages/Experimental` in this checkout.
 
@@ -50,6 +52,7 @@ The repo also wires a YubiKey policy to `/Experimental/*`, but there are no Razo
 | `/Records/Delete/{id}` | Owner only | `RecordsController.Delete` | Removes a record |
 | `/Records/Download/{id}` | Public or authorized | `RecordsController.Download` | Downloads file content |
 | `/AdminRecords/*` | Site admin | `AdminRecordsController.*` | Full-record CRUD and admin search/filter |
+| `/GroupAdminRecords/*` | Group admin | `GroupAdminRecordsController.*` | Group-scoped CRUD limited to the mapped group |
 | `/Account/SignIn`, `/Account/SignOut` | Public/authenticated | Microsoft Identity UI | Starts or ends the primary login session |
 | `/Experimental/*` | YubiKey MFA policy | Razor Pages convention | Reserved for second-factor protected pages |
 
@@ -90,8 +93,8 @@ This role model reflects what the current code actually activates:
 - **Anonymous** users only get public content.
 - **Authenticated** users unlock owner-scoped CRUD pages.
 - **Site admins** are a stricter state on top of authenticated users and require a mapped certificate.
+- **Group admins** are a stricter state on top of authenticated users and require a mapped group-admin certificate.
 - **YubiKey MFA users** are another stricter state on top of authenticated users and are intended for `/Experimental/*`.
-- **Group admin** is a requested documentation concept, but there is no route, policy, or handler for it in the repository.
 
 ## Diagram 5 — what programs and functions activate during key interactions
 
@@ -105,6 +108,7 @@ The main request paths activate these application components:
 | Upload record | `RecordsController.Create` | `UploadPolicy`, `UserIdentityHelper`, `CrudDbContext.SaveChangesAsync` |
 | Browse own records | `RecordsController.Index` | `UserIdentityHelper.GetStableUserId`, `CrudDbContext` |
 | Open admin pages | `AdminCertificateRequirementHandler` then `AdminRecordsController.*` | `AdminCertificateAuditService`, `CrudDbContext` |
+| Open group-admin pages | `GroupAdminCertificateRequirementHandler` then `GroupAdminRecordsController.*` | `GroupAccessSettings`, `AdminCertificateAuditService`, `CrudDbContext` |
 | Open YubiKey-protected route | `YubiKeyRequirementHandler` | `OcspValidationService`, `YubiKeySettings`, TLS client certificate chain |
 | Client-side filtering | `Views/Records/Index.cshtml` and `Views/AdminRecords/Index.cshtml` inline scripts | Bootstrap, jQuery, nonce-bearing script tags when CSP is enabled |
 
@@ -135,7 +139,7 @@ The certificate architecture splits into two major trust paths:
 | Authenticated user | No | OIDC login only |
 | Site admin | Yes | `AdminCertificateSettings.AllowedIssuers` + mapped thumbprint |
 | YubiKey MFA user | Yes | Allowed CA issuer + optional CA thumbprint + optional attestation + OCSP |
-| Group admin | No implementation | No current validation path |
+| Group admin | Yes | `GroupAccessSettings` group/user mapping + mapped thumbprint + allowed issuer |
 
 ## Diagram 7 — how tests interact with the site and when they run
 
@@ -160,14 +164,23 @@ The current repository behavior is:
 
 ### Current timing answer
 
-The automated tests run **during `dotnet test`**, not during a plain `dotnet build`. In the current validation run for this task, the repository passed **362 tests**.
+The automated tests run **during `dotnet test`**, not during a plain `dotnet build`. In the current validation run for this task, the repository passed **367 tests**.
 
 ## Operational observations and gaps
 
-- The repository contains a strong certificate-driven admin and YubiKey story, but **group-admin-specific flows are not yet implemented**.
+- Group-admin-specific flows are implemented with a dedicated controller, views, authorization policy, certificate mapping model, and tests.
 - `/Experimental/*` is already reserved for YubiKey MFA, so future feature work can attach new Razor Pages there without redesigning the auth model.
 - The home page is the clearest page-to-asset hub because it combines database reads, authorization-sensitive ArcGIS selection, and public downloads.
 - The admin views and user views both ship inline filter scripts, so CSP/nonce behavior matters for these pages when nonce services are enabled.
+
+## Security feature summary mapped to NIST controls (SP 800-53 Rev. 5)
+
+| Security feature area | Current implementation in this repo | NIST control mappings |
+|---|---|---|
+| Security headers | CSP with nonce/hash support; X-Frame-Options, X-Content-Type-Options, HSTS, Referrer-Policy, Permissions-Policy, COOP/CORP, cache-control hardening | **SC-5** (Denial-of-Service protections), **SC-7** (Boundary protection), **SC-8** (Transmission confidentiality/integrity), **SC-23** (Session authenticity), **SI-10** (Information input validation) |
+| Certificate-based access control | `AdminCertificate` and `GroupAdminCertificate` policies enforce mapped client-certificate access for privileged routes; failed/successful attempts are audited | **IA-2** (Identification and authentication), **IA-5** (Authenticator management), **AC-3** (Access enforcement), **AU-2/AU-12** (Auditable events and logging) |
+| External resource use | Feature-flagged integrations for Azure Key Vault/Cosmos/Blob, AWS Secrets Manager/DynamoDB/Cognito, and GCP Secret Manager/Firestore/Identity with explicit startup wiring | **CM-7** (Least functionality), **SA-9** (External system services), **SC-7** (Boundary protection), **SR-3** (Supply chain controls) |
+| MFA (YubiKey) | `YubiKeyMfa` policy enforces second factor via client cert checks, issuer/thumbprint constraints, optional attestation checks, and OCSP revocation validation | **IA-2(1)/(2)** (Multi-factor authentication), **IA-5** (Authenticator management), **SC-17** (PKI certificates), **SI-4** (System monitoring through revocation/status checks) |
 
 ## Files most relevant to these diagrams
 
@@ -175,15 +188,18 @@ The automated tests run **during `dotnet test`**, not during a plain `dotnet bui
 - `WebAppExperimental266/Controllers/HomeController.cs`
 - `WebAppExperimental266/Controllers/RecordsController.cs`
 - `WebAppExperimental266/Controllers/AdminRecordsController.cs`
+- `WebAppExperimental266/Controllers/GroupAdminRecordsController.cs`
 - `WebAppExperimental266/Extensions/ServiceCollectionExtensions.cs`
 - `WebAppExperimental266/Extensions/CrudAndAdminExtensions.cs`
 - `WebAppExperimental266/Services/AdminCertificateRequirementHandler.cs`
+- `WebAppExperimental266/Services/GroupAdminCertificateRequirementHandler.cs`
 - `WebAppExperimental266/Services/YubiKeyRequirementHandler.cs`
 - `WebAppExperimental266/Services/CrudRecordAuthorizationHandler.cs`
 - `WebAppExperimental266/Views/Shared/_Layout.cshtml`
 - `WebAppExperimental266/Views/Home/Index.cshtml`
 - `WebAppExperimental266/Views/Records/Index.cshtml`
 - `WebAppExperimental266/Views/AdminRecords/Index.cshtml`
+- `WebAppExperimental266/Views/GroupAdminRecords/Index.cshtml`
 - `WebAppExperimental266.Tests/Integration/ApplicationIntegrationTests.cs`
 - `WebAppExperimental266.Tests/Integration/MtlsIntegrationTests.cs`
 - `docs/YUBIKEY_OPENBSD_ADMIN_GUIDE.md`
