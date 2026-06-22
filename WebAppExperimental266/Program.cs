@@ -76,6 +76,14 @@ namespace WebAppExperimental266
             builder.Services.AddFeatureFlags(builder.Configuration);
             var featureFlags = builder.Configuration.GetSection("FeatureFlags").Get<FeatureFlags>() ?? new FeatureFlags();
 
+            if (!featureFlags.EnableAzureAd &&
+                !featureFlags.EnableAwsCognito &&
+                !featureFlags.EnableGcpIdentity &&
+                !featureFlags.EnableMtls)
+            {
+                builder.Services.AddFallbackAuthentication(logger);
+            }
+
             logger.LogInformation("Feature Flags Loaded: AzureAd={AzureAd}, CosmosDb={CosmosDb}, BlobStorage={BlobStorage}, AwsSecretsManager={AwsSM}, AwsDynamoDb={AwsDynamo}, AwsCognito={AwsCognito}, GcpSecretManager={GcpSM}, GcpFirestore={GcpFirestore}, GcpIdentity={GcpIdentity}",
                 featureFlags.EnableAzureAd, featureFlags.EnableCosmosDb, featureFlags.EnableBlobStorage,
                 featureFlags.EnableAwsSecretsManager, featureFlags.EnableAwsDynamoDb, featureFlags.EnableAwsCognito,
@@ -245,13 +253,7 @@ namespace WebAppExperimental266
                 app.UseSession();
             }
 
-            if (featureFlags.EnableAzureAd ||
-                featureFlags.EnableAwsCognito ||
-                featureFlags.EnableGcpIdentity ||
-                featureFlags.EnableMtls)
-            {
-                app.UseAuthentication();
-            }
+            app.UseAuthentication();
 
             // UseAuthorization must always be present when any endpoint has authorization metadata
             app.UseAuthorization();

@@ -90,7 +90,21 @@ namespace WebAppExperimental266.Controllers
             record.Description = input.Description;
             record.UpdatedUtc = DateTime.UtcNow;
 
-            await _dbContext.SaveChangesAsync();
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                ModelState.AddModelError(string.Empty, "This record was changed by another process. Reload and try again.");
+                return View(record);
+            }
+            catch (DbUpdateException)
+            {
+                ModelState.AddModelError(string.Empty, "The record could not be saved. Please try again.");
+                return View(record);
+            }
+
             return RedirectToAction(nameof(Index));
         }
 
@@ -120,7 +134,16 @@ namespace WebAppExperimental266.Controllers
             }
 
             _dbContext.CrudRecords.Remove(record);
-            await _dbContext.SaveChangesAsync();
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+            }
+            catch (DbUpdateException)
+            {
+                ModelState.AddModelError(string.Empty, "The record could not be deleted. Please try again.");
+                return View("Delete", record);
+            }
+
             return RedirectToAction(nameof(Index));
         }
 

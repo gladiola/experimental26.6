@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using WebAppExperimental266.Data;
@@ -8,6 +9,21 @@ namespace WebAppExperimental266.Extensions
 {
     public static class CrudAndAdminExtensions
     {
+        public static IServiceCollection AddFallbackAuthentication(
+            this IServiceCollection services,
+            ILogger logger)
+        {
+            services.AddAuthentication("DisabledAuthentication")
+                .AddScheme<AuthenticationSchemeOptions, DisabledAuthenticationHandler>(
+                    "DisabledAuthentication",
+                    _ => { });
+
+            logger.LogWarning(
+                "No interactive authentication provider was enabled. Falling back to a disabled authentication scheme that returns 401/403 for protected routes.");
+
+            return services;
+        }
+
         public static IServiceCollection AddCrudDataServices(
             this IServiceCollection services,
             IConfiguration configuration,
@@ -95,7 +111,20 @@ namespace WebAppExperimental266.Extensions
         {
             using var scope = app.ApplicationServices.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<CrudDbContext>();
-            await dbContext.Database.EnsureCreatedAsync();
+            var environment = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+            var settings = scope.ServiceProvider.GetRequiredService<CrudDataSettings>();
+
+            if (environment.IsDevelopment() || string.Equals(environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase))
+            {
+                await dbContext.Database.EnsureCreatedAsync();
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Skipping automatic CRUD data-store creation for provider {Provider} outside Development/Testing. Provision the schema or container separately.",
+                    settings.Provider);
+                return app;
+            }
 
             logger.LogInformation(
                 "CRUD data store is ready using provider {Provider}",

@@ -27,9 +27,9 @@ namespace WebAppExperimental266.Services
             return CandidateClaimTypes
                 .Select(claimType => user.FindFirstValue(claimType))
                 .Append(user.Identity?.Name)
+                .OfType<string>()
                 .Where(value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Cast<string>()
                 .ToList();
         }
 
