@@ -127,6 +127,10 @@ namespace WebAppExperimental266
             builder.Services.AddCrudDataServices(builder.Configuration, logger, environment);
             builder.Services.AddAdminCertificateAuthorization(builder.Configuration, logger);
 
+            var arcGisSettings = builder.Configuration.GetSection("ArcGisSettings").Get<WebAppExperimental266.Models.Settings.ArcGisSettings>()
+                ?? new WebAppExperimental266.Models.Settings.ArcGisSettings();
+            builder.Services.AddSingleton(arcGisSettings);
+
             // Phase 3: Azure Services (Advanced)
             if (featureFlags.EnableKeyVault)
             {

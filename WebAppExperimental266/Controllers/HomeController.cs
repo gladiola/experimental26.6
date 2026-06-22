@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebAppExperimental266.Data;
 using WebAppExperimental266.Models;
+using WebAppExperimental266.Models.Settings;
 using WebAppExperimental266.Services;
 
 namespace WebAppExperimental266.Controllers
@@ -14,13 +15,19 @@ namespace WebAppExperimental266.Controllers
     {
         private readonly CrudDbContext _dbContext;
         private readonly ILogger<HomeController> _logger;
+        private readonly ArcGisSettings _arcGisSettings;
+        private readonly IAuthorizationService _authorizationService;
 
         public HomeController(
             CrudDbContext dbContext,
-            ILogger<HomeController> logger)
+            ILogger<HomeController> logger,
+            ArcGisSettings arcGisSettings,
+            IAuthorizationService authorizationService)
         {
             _dbContext = dbContext;
             _logger = logger;
+            _arcGisSettings = arcGisSettings;
+            _authorizationService = authorizationService;
         }
 
         [AllowAnonymous]
@@ -32,6 +39,33 @@ namespace WebAppExperimental266.Controllers
                 .OrderByDescending(record => record.UpdatedUtc)
                 .Take(50)
                 .ToListAsync();
+
+            string mapUrl;
+            string mapLabel;
+
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                var adminResult = await _authorizationService.AuthorizeAsync(User, "AdminCertificate");
+                if (adminResult.Succeeded)
+                {
+                    mapUrl = _arcGisSettings.AdminMapUrl;
+                    mapLabel = _arcGisSettings.AdminMapLabel;
+                }
+                else
+                {
+                    mapUrl = _arcGisSettings.UserMapUrl;
+                    mapLabel = _arcGisSettings.UserMapLabel;
+                }
+            }
+            else
+            {
+                mapUrl = _arcGisSettings.PublicMapUrl;
+                mapLabel = _arcGisSettings.PublicMapLabel;
+            }
+
+            ViewData["ArcGisMapUrl"] = mapUrl;
+            ViewData["ArcGisMapLabel"] = mapLabel;
+
             return View(publicRecords);
         }
 
