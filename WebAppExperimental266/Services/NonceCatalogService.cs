@@ -18,7 +18,7 @@ namespace WebAppExperimental266.Services
     public class NonceCatalogService : INonceCatalogService
     {
         // In-memory storage for the nonces — ConcurrentDictionary is safe for concurrent reads and writes
-        private static readonly ConcurrentDictionary<string, Nonce> _nonceCollection = new ConcurrentDictionary<string, Nonce>();
+        private readonly ConcurrentDictionary<string, Nonce> _nonceCollection = new ConcurrentDictionary<string, Nonce>();
 
         // Logging for the service
         private readonly ILogger<NonceCatalogService> _logger ;

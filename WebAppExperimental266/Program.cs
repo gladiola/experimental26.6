@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Azure.Cosmos;
 using Microsoft.EntityFrameworkCore;
@@ -76,6 +77,8 @@ namespace WebAppExperimental266
             // Load feature flags
             builder.Services.AddFeatureFlags(builder.Configuration);
             var featureFlags = builder.Configuration.GetSection("FeatureFlags").Get<FeatureFlags>() ?? new FeatureFlags();
+            var forwardedHeadersSettings = builder.Configuration.GetSection("ForwardedHeaders").Get<ForwardedHeadersSettings>()
+                ?? new ForwardedHeadersSettings();
 
             if (!featureFlags.EnableAzureAd &&
                 !featureFlags.EnableAwsCognito &&
@@ -92,6 +95,7 @@ namespace WebAppExperimental266
 
             // Core services
             builder.Services.AddSingleton<ILoggerFactory, LoggerFactory>();
+            builder.Services.AddForwardedHeadersConfiguration(builder.Configuration, logger);
 
             // Phase 1: Basic Infrastructure
             builder.Services.AddSessionConfiguration(logger, featureFlags.EnableSession);
@@ -238,6 +242,11 @@ namespace WebAppExperimental266
             await app.EnsureCrudDataStoreCreatedAsync(logger);
 
             // Configure HTTP pipeline
+            if (forwardedHeadersSettings.EnableForwardedHeaders)
+            {
+                app.UseForwardedHeaders();
+            }
+
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Error");
@@ -273,6 +282,7 @@ namespace WebAppExperimental266
             }
 
             app.UseAuthentication();
+            app.UseRestrictedProbePaths(logger, enabled: true);
             app.UseRateLimiter();
 
             // UseAuthorization must always be present when any endpoint has authorization metadata
@@ -303,7 +313,13 @@ namespace WebAppExperimental266
                 }
             }
 
-            return $"anon:{context.Connection.RemoteIpAddress?.ToString() ?? "unknown"}";
+            var remoteAddress = context.Connection.RemoteIpAddress;
+            if (remoteAddress?.IsIPv4MappedToIPv6 == true)
+            {
+                remoteAddress = remoteAddress.MapToIPv4();
+            }
+
+            return $"anon:{remoteAddress?.ToString() ?? "unknown"}";
         }
     }
 }

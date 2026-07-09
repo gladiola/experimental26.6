@@ -47,9 +47,7 @@ namespace WebAppExperimental266.Services
                     // Log only success status — never log the nonce value (see Critical #2).
                     LoggingHelper.LogDataProcessingStatusServiceWork(_logger, caller, "", DataProcessingStatus.Success, "Nonce generated successfully.");
                 }
-
                 _nonceCatalogService.AddANonce("CSPNonce", nonce);
-
                 await Task.CompletedTask;
             }
             catch (Exception ex)

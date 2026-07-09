@@ -40,25 +40,19 @@ namespace WebAppExperimental266.Services
         public async Task InvokeAsync(HttpContext context)
         {
             string caller = "OptimizedNonceMiddleware.InvokeAsync()";
-            string existingNonce;
             string nonce = string.Empty;
             Interlocked.Increment(ref _requestCount);
 
             // Check if this request should skip nonce generation
             if (ShouldIgnoreRequest(context.Request))
             {
-                // Use existing nonce from catalog (or a fresh random nonce for static content).
-                // SECURITY: Never fall back to a predictable hardcoded string — hardcoded
-                // nonce literals committed to source are known to attackers and allow CSP bypass
-                // even during error conditions (Critical #3).
-                existingNonce = _nonceCatalogService.GetANonce("CSPNonce");
-                if (string.IsNullOrEmpty(existingNonce))
+                nonce = context.Items["Nonce"] as string ?? string.Empty;
+                if (string.IsNullOrEmpty(nonce))
                 {
-                    // First request before any nonce generated — produce a fresh random nonce.
-                    existingNonce = Nonce.GenerateSecureNonce();
+                    nonce = Nonce.GenerateSecureNonce();
                 }
 
-                context.Items["Nonce"] = existingNonce;
+                context.Items["Nonce"] = nonce;
 
                 _logger.LogTrace("Reusing existing nonce for: {Path}", context.Request.Path);
             }
@@ -73,8 +67,7 @@ namespace WebAppExperimental266.Services
                 try
                 {
                     // Generate the nonce
-                    await _nonceRefresherService.RefreshNonceAsync();
-                    nonce = _nonceCatalogService.GetANonce("CSPNonce");
+                    nonce = await _nonceRefresherService.RefreshNonceAsync();
 
                     if (string.IsNullOrEmpty(nonce))
                     {
@@ -156,15 +149,6 @@ namespace WebAppExperimental266.Services
                         // All other file extensions are static files
                         result = true;
                     }
-                }
-                else if (!result &&
-                    (path.Equals("/healthz", StringComparison.OrdinalIgnoreCase) ||
-                    path.Equals("/health", StringComparison.OrdinalIgnoreCase) ||
-                    path.Equals("/ready", StringComparison.OrdinalIgnoreCase) ||
-                    path.Equals("/alive", StringComparison.OrdinalIgnoreCase)))
-                {
-                    // Ignore Azure health check probes
-                    result = true;
                 }
             }
 

@@ -67,7 +67,7 @@ namespace WebAppExperimental266.Services
         
             StringBuilder CSPScriptHashes = new StringBuilder();
            // string preamble = "default-src 'none'; script-src 'self' ";
-            string preamble = "script-src ";
+            string preamble = "default-src 'none'; script-src ";
             string conclusion = " ; connect-src 'self'; img-src 'self'; style-src 'self'; frame-ancestors 'self'; form-action 'self';";
             string fullFilePath;
             string? line;

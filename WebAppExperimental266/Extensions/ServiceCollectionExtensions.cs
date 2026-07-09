@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authentication.Certificate;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Azure.Cosmos;
@@ -12,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
+using System.Net;
 using System.Globalization;
 using System.Security.Cryptography.X509Certificates;
 using WebAppExperimental266.AwsSecretManager;
@@ -34,6 +36,61 @@ namespace WebAppExperimental266.Extensions
         {
             services.Configure<FeatureFlags>(configuration.GetSection("FeatureFlags"));
             services.AddSingleton(sp => sp.GetRequiredService<IOptions<FeatureFlags>>().Value);
+            return services;
+        }
+
+        public static IServiceCollection AddForwardedHeadersConfiguration(
+            this IServiceCollection services,
+            IConfiguration configuration,
+            ILogger logger)
+        {
+            var settings = configuration.GetSection("ForwardedHeaders").Get<ForwardedHeadersSettings>()
+                ?? new ForwardedHeadersSettings();
+
+            services.AddSingleton(settings);
+
+            if (!settings.EnableForwardedHeaders)
+            {
+                logger.LogInformation("Forwarded headers are DISABLED");
+                return services;
+            }
+
+            if (settings.KnownProxies.Count == 0 && settings.KnownNetworks.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "ForwardedHeaders is enabled but no KnownProxies or KnownNetworks were configured. " +
+                    "Configure trusted proxy IPs/CIDRs before enabling forwarded headers.");
+            }
+
+            services.Configure<ForwardedHeadersOptions>(options =>
+            {
+                options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+                options.ForwardLimit = settings.ForwardLimit > 0 ? settings.ForwardLimit : 1;
+
+                foreach (var proxy in settings.KnownProxies)
+                {
+                    if (IPAddress.TryParse(proxy, out var parsedProxy))
+                    {
+                        options.KnownProxies.Add(parsedProxy);
+                    }
+                }
+
+                foreach (var network in settings.KnownNetworks)
+                {
+                    if (!TryParseCidr(network, out var parsedNetwork))
+                    {
+                        throw new InvalidOperationException($"Invalid forwarded-header KnownNetworks entry '{network}'. Use CIDR notation such as 10.0.0.0/8.");
+                    }
+
+                    options.KnownNetworks.Add(parsedNetwork);
+                }
+            });
+
+            logger.LogInformation(
+                "Forwarded headers enabled with {KnownProxyCount} trusted proxies and {KnownNetworkCount} trusted networks",
+                settings.KnownProxies.Count,
+                settings.KnownNetworks.Count);
+
             return services;
         }
 
@@ -921,6 +978,13 @@ namespace WebAppExperimental266.Extensions
                     "Add a YubiKeySettings section to appsettings.json when EnableYubiKeyRequired is true. " +
                     "See docs/YUBIKEY_OPENBSD_ADMIN_GUIDE.md and appsettings.template.json for reference.");
 
+            if (yubiKeySettings.AllowedCaIssuers.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "YubiKey MFA requires YubiKeySettings:AllowedCaIssuers to be configured. " +
+                    "An empty issuer allow-list is not permitted.");
+            }
+
             // Register settings
             services.AddSingleton(yubiKeySettings);
 
@@ -929,6 +993,12 @@ namespace WebAppExperimental266.Extensions
             // register it.  The OCSP responder URL should point at the OpenBSD host.
             var ocspSettings = configuration.GetSection("OcspSettings").Get<OcspSettings>()
                 ?? new OcspSettings();
+            if (ocspSettings.EnableOcspValidation && string.IsNullOrWhiteSpace(ocspSettings.OcspServerUrl))
+            {
+                throw new InvalidOperationException(
+                    "OCSP validation is enabled for YubiKey MFA but OcspSettings:OcspServerUrl is missing.");
+            }
+
             services.AddSingleton(ocspSettings);
             services.AddHttpClient();
             services.AddSingleton<IOcspValidationService>(sp =>
@@ -955,19 +1025,9 @@ namespace WebAppExperimental266.Extensions
                           .AddRequirements(new YubiKeyRequirement()));
             });
 
-            if (yubiKeySettings.AllowedCaIssuers.Count == 0)
-            {
-                logger.LogWarning(
-                    "YubiKey MFA: YubiKeySettings:AllowedCaIssuers is empty. " +
-                    "All certificate issuers will be accepted. " +
-                    "Populate AllowedCaIssuers with the OpenBSD admin CA DN to restrict access.");
-            }
-            else
-            {
-                logger.LogInformation(
-                    "YubiKey MFA: Allowed admin CA issuers: [{Issuers}]",
-                    string.Join(", ", yubiKeySettings.AllowedCaIssuers));
-            }
+            logger.LogInformation(
+                "YubiKey MFA: Allowed admin CA issuers: [{Issuers}]",
+                string.Join(", ", yubiKeySettings.AllowedCaIssuers));
 
             if (yubiKeySettings.RequireYubiKeyAttestation)
             {
@@ -979,6 +1039,21 @@ namespace WebAppExperimental266.Extensions
             logger.LogInformation("YubiKey MFA services and 'YubiKeyMfa' authorization policy registered");
 
             return services;
+        }
+
+        private static bool TryParseCidr(string cidr, out IPNetwork network)
+        {
+            network = null!;
+            var parts = cidr.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 2 ||
+                !IPAddress.TryParse(parts[0], out var prefix) ||
+                !int.TryParse(parts[1], out var prefixLength))
+            {
+                return false;
+            }
+
+            network = new IPNetwork(prefix, prefixLength);
+            return true;
         }
     }
 }

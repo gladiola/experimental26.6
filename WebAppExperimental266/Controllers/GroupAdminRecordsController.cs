@@ -67,15 +67,6 @@ namespace WebAppExperimental266.Controllers
                 return NotFound();
             }
 
-            if (uploadFile is null)
-            {
-                ModelState.AddModelError(string.Empty, "Please choose a JSON file to upload.");
-            }
-            else if (!string.Equals(Path.GetExtension(uploadFile.FileName), ".json", StringComparison.OrdinalIgnoreCase))
-            {
-                ModelState.AddModelError(string.Empty, "Only .json files are supported.");
-            }
-
             if (!input.UploadPermissionConfirmed)
             {
                 ModelState.AddModelError(nameof(input.UploadPermissionConfirmed), "You must confirm upload permission.");
@@ -86,35 +77,21 @@ namespace WebAppExperimental266.Controllers
                 ModelState.AddModelError(nameof(input.CardType), "Select a supported card type.");
             }
 
-            byte[]? uploadedBytes = null;
-            string? uploadedFileName = null;
-            string? uploadedContentType = null;
-            long? uploadedFileSize = null;
-            if (uploadFile is not null)
+            var uploadResult = await UploadPolicy.ValidateAndReadJsonUploadAsync(uploadFile, HttpContext.RequestAborted);
+            if (!uploadResult.IsValid)
             {
-                if (uploadFile.Length <= 0)
-                {
-                    ModelState.AddModelError(string.Empty, "The selected file is empty.");
-                }
-                else if (uploadFile.Length > UploadPolicy.MaxUploadBytes)
-                {
-                    ModelState.AddModelError(string.Empty, $"Files larger than {UploadPolicy.MaxUploadBytes / (1024 * 1024)} MB are not allowed.");
-                }
-                else
-                {
-                    uploadedBytes = await UploadPolicy.ReadFileBytesAsync(uploadFile, HttpContext.RequestAborted);
-                    uploadedFileSize = uploadFile.Length;
-                    uploadedFileName = Path.GetFileName(uploadFile.FileName);
-                    uploadedContentType = string.IsNullOrWhiteSpace(uploadFile.ContentType)
-                        ? "application/octet-stream"
-                        : uploadFile.ContentType;
-                }
+                ModelState.AddModelError(string.Empty, uploadResult.ErrorMessage ?? "The selected upload is invalid.");
             }
 
             if (!ModelState.IsValid)
             {
                 return View(input);
             }
+
+            var uploadedBytes = uploadResult.UploadedBytes;
+            var uploadedFileName = uploadResult.UploadedFileName;
+            var uploadedContentType = uploadResult.UploadedContentType;
+            var uploadedFileSize = uploadResult.UploadedFileSize;
 
             var now = DateTime.UtcNow;
             var trimmedTitle = input.Title?.Trim();
@@ -238,12 +215,8 @@ namespace WebAppExperimental266.Controllers
                 return NotFound();
             }
 
-            var contentType = string.IsNullOrWhiteSpace(record.UploadedContentType)
-                ? "application/octet-stream"
-                : record.UploadedContentType;
-            var fileName = string.IsNullOrWhiteSpace(record.UploadedFileName)
-                ? "upload.bin"
-                : record.UploadedFileName;
+            var contentType = UploadPolicy.GetSafeDownloadContentType(record.UploadedContentType);
+            var fileName = UploadPolicy.GetSafeDownloadFileName(record.UploadedFileName);
 
             return File(record.UploadedFileContent, contentType, fileName);
         }

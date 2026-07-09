@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
 using System.Text;
 using WebAppExperimental266.Models.Settings;
 using WebAppExperimental266.Services;
@@ -9,6 +10,14 @@ namespace WebAppExperimental266.Extensions
 {
     public static class ApplicationBuilderExtensions
     {
+        private static readonly PathString[] RestrictedProbePaths =
+        {
+            new PathString("/healthz"),
+            new PathString("/health"),
+            new PathString("/ready"),
+            new PathString("/alive")
+        };
+
         /// <summary>
         /// Enable request localization middleware (culture negotiation via Accept-Language, query string, and cookie)
         /// </summary>
@@ -46,15 +55,17 @@ namespace WebAppExperimental266.Extensions
             }
             else
             {
-                await app.ApplicationServices.GetRequiredService<INonceRefresherService>().RefreshNonceAsync();
-
                 app.UseMiddleware<NonceMiddleware>();
                 app.UseMiddleware<LoggingMiddleware>();
 
                 app.Use(async (context, next) =>
                 {
-                    var nonceCatalog = app.ApplicationServices.GetRequiredService<INonceCatalogService>();
-                    var cspNonce = nonceCatalog.GetANonce("CSPNonce");
+                    var cspNonce = context.Items["Nonce"] as string;
+                    if (string.IsNullOrWhiteSpace(cspNonce))
+                    {
+                        cspNonce = Nonce.GenerateSecureNonce();
+                        context.Items["Nonce"] = cspNonce;
+                    }
 
                     // Use CSP Builder service
                     var cspBuilder = app.ApplicationServices.GetRequiredService<ContentSecurityPolicyBuilder>();
@@ -65,7 +76,7 @@ namespace WebAppExperimental266.Extensions
                         cspSettings?.HashFilePath,
                         cspSettings);
 
-                    context.Response.Headers.Append("Content-Security-Policy", cspHeader);
+                    context.Response.Headers["Content-Security-Policy"] = cspHeader;
 
                     await next.Invoke();
                 });
@@ -92,23 +103,25 @@ namespace WebAppExperimental266.Extensions
             {
                 app.Use(async (context, next) =>
                 {
-                    context.Response.Headers.Append("X-Frame-Options", "DENY");
-                    context.Response.Headers.Append("X-XSS-Protection", "0");
-                    context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
-                    context.Response.Headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
-                    context.Response.Headers.Append("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
-                    context.Response.Headers.Append("Cross-Origin-Opener-Policy", "same-origin");
-                    context.Response.Headers.Append("Cross-Origin-Resource-Policy", "same-site");
-                    context.Response.Headers.Append("Permissions-Policy", "geolocation=(), camera=(), microphone=(), interest-cohort=()");
+                    context.Response.Headers["X-Frame-Options"] = "DENY";
+                    context.Response.Headers["X-XSS-Protection"] = "0";
+                    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+                    context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
+                    context.Response.Headers["Cross-Origin-Opener-Policy"] = "same-origin";
+                    context.Response.Headers["Cross-Origin-Resource-Policy"] = "same-site";
+                    context.Response.Headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=(), interest-cohort=()";
 
                     context.Response.Headers.Remove("Server");
-                    context.Response.Headers.Append("Server", "webserver");
+                    context.Response.Headers["Server"] = "webserver";
                     context.Response.Headers.Remove("X-Powered-By");
                     context.Response.Headers.Remove("X-AspNetMvc-Version");
 
-                    context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
-                    context.Response.Headers.Append("Pragma", "no-cache");
-                    context.Response.Headers.Append("Expires", "0");
+                    if (!IsStaticAssetRequest(context.Request.Path))
+                    {
+                        context.Response.Headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                        context.Response.Headers["Pragma"] = "no-cache";
+                        context.Response.Headers["Expires"] = "0";
+                    }
 
                     await next.Invoke();
                 });
@@ -117,6 +130,66 @@ namespace WebAppExperimental266.Extensions
             }
 
             return app;
+        }
+
+        public static IApplicationBuilder UseRestrictedProbePaths(
+            this IApplicationBuilder app,
+            ILogger logger,
+            bool enabled = true)
+        {
+            if (!enabled)
+            {
+                return app;
+            }
+
+            app.Use(async (context, next) =>
+            {
+                if (IsRestrictedProbePath(context.Request.Path) &&
+                    context.User.Identity?.IsAuthenticated != true)
+                {
+                    logger.LogWarning(
+                        "Rejected anonymous probe-path request for {Path}",
+                        SanitizePath(context.Request.Path));
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return;
+                }
+
+                await next.Invoke();
+            });
+
+            return app;
+        }
+
+        private static bool IsStaticAssetRequest(PathString path)
+        {
+            if (!path.HasValue)
+            {
+                return false;
+            }
+
+            if (path.StartsWithSegments("/css", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWithSegments("/js", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWithSegments("/lib", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWithSegments("/images", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWithSegments("/fonts", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWithSegments("/wwwroot", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var extension = Path.GetExtension(path.Value);
+            return !string.IsNullOrWhiteSpace(extension) &&
+                   !string.Equals(extension, ".cshtml", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsRestrictedProbePath(PathString path)
+        {
+            return RestrictedProbePaths.Contains(path);
+        }
+
+        private static string SanitizePath(PathString path)
+        {
+            return path.Value?.Replace("\r", string.Empty).Replace("\n", string.Empty) ?? "/";
         }
     }
 }
