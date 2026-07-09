@@ -1041,7 +1041,7 @@ namespace WebAppExperimental266.Extensions
             return services;
         }
 
-        private static bool TryParseCidr(string cidr, out IPNetwork network)
+        private static bool TryParseCidr(string cidr, out Microsoft.AspNetCore.HttpOverrides.IPNetwork network)
         {
             network = null!;
             var parts = cidr.Split('/', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
@@ -1052,7 +1052,7 @@ namespace WebAppExperimental266.Extensions
                 return false;
             }
 
-            network = new IPNetwork(prefix, prefixLength);
+            network = new Microsoft.AspNetCore.HttpOverrides.IPNetwork(prefix, prefixLength);
             return true;
         }
     }
