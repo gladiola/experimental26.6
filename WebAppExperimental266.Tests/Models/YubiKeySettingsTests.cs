@@ -44,15 +44,15 @@ namespace WebAppExperimental266.Tests.Models
         // ── IsIssuerAllowed ─────────────────────────────────────────────────────
 
         [Fact]
-        public void IsIssuerAllowed_ReturnsTrueForAll_WhenAllowedCaIssuersIsEmpty()
+        public void IsIssuerAllowed_ReturnsFalse_WhenAllowedCaIssuersIsEmpty()
         {
             var settings = new YubiKeySettings
             {
                 AllowedCaIssuers = new List<string>()
             };
 
-            settings.IsIssuerAllowed("CN=Any CA").Should().BeTrue(
-                "when AllowedCaIssuers is empty there is no restriction and all issuers are accepted");
+            settings.IsIssuerAllowed("CN=Any CA").Should().BeFalse(
+                "an empty AllowedCaIssuers list must fail closed for YubiKey MFA");
         }
 
         [Fact]

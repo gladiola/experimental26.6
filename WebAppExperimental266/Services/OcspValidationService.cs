@@ -178,44 +178,13 @@ namespace WebAppExperimental266.Services
         /// </summary>
         private OcspValidationResult HandleServerUnavailable(string message)
         {
-            var behavior = _settings.ServerUnavailableBehavior.ToLower();
-            OcspValidationResult result;
-
-            switch (behavior)
+            _logger.LogError("OCSP server unavailable - Rejecting request: {Message}", message);
+            return new OcspValidationResult
             {
-                case "fail":
-                    _logger.LogError("OCSP server unavailable - Rejecting request: {Message}", message);
-                    result = new OcspValidationResult
-                    {
-                        IsValid = false,
-                        Status = OcspStatus.ServerUnavailable,
-                        Message = message
-                    };
-                    break;
-
-                case "allow":
-                    _logger.LogWarning("OCSP server unavailable - Allowing request: {Message}", message);
-                    result = new OcspValidationResult
-                    {
-                        IsValid = true,
-                        Status = OcspStatus.ServerUnavailable,
-                        Message = message
-                    };
-                    break;
-
-                case "warn":
-                default:
-                    _logger.LogWarning("OCSP server unavailable - Warning only: {Message}", message);
-                    result = new OcspValidationResult
-                    {
-                        IsValid = true,
-                        Status = OcspStatus.Warning,
-                        Message = message
-                    };
-                    break;
-            }
-
-            return result;
+                IsValid = false,
+                Status = OcspStatus.ServerUnavailable,
+                Message = message
+            };
         }
     }
 

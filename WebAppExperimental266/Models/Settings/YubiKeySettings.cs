@@ -62,7 +62,7 @@ namespace WebAppExperimental266.Models.Settings
         public bool IsIssuerAllowed(string issuer)
         {
             if (AllowedCaIssuers == null || AllowedCaIssuers.Count == 0)
-                return true;
+                return false;
 
             return AllowedCaIssuers.Any(allowed =>
                 issuer.Contains(allowed, StringComparison.OrdinalIgnoreCase));

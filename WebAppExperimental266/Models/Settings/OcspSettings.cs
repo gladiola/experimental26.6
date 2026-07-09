@@ -36,7 +36,7 @@ namespace WebAppExperimental266.Models.Settings
         /// Behavior when OCSP server is unavailable
         /// Options: "Fail" (reject request), "Allow" (continue processing), "Warn" (log warning but continue)
         /// </summary>
-        public string ServerUnavailableBehavior { get; set; } = "Warn";
+        public string ServerUnavailableBehavior { get; set; } = "Fail";
 
         /// <summary>
         /// Enable detailed logging for OCSP operations

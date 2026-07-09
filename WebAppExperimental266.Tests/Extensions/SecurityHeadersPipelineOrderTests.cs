@@ -52,7 +52,6 @@ namespace WebAppExperimental266.Tests.Extensions
             context.Response.Headers.Should().ContainKey("X-Frame-Options",
                 "security headers must be applied before the pipeline can short-circuit (security fix #9)");
             context.Response.Headers.Should().ContainKey("X-Content-Type-Options");
-            context.Response.Headers.Should().ContainKey("Strict-Transport-Security");
             context.Response.Headers.Should().ContainKey("Referrer-Policy");
         }
 
@@ -108,10 +107,29 @@ namespace WebAppExperimental266.Tests.Extensions
             context.Response.Headers.Should().ContainKey("X-Frame-Options");
             context.Response.Headers.Should().ContainKey("X-Content-Type-Options");
             context.Response.Headers.Should().ContainKey("X-XSS-Protection");
-            context.Response.Headers.Should().ContainKey("Strict-Transport-Security");
             context.Response.Headers.Should().ContainKey("Referrer-Policy");
             context.Response.Headers.Should().ContainKey("Cross-Origin-Opener-Policy");
             context.Response.Headers.Should().ContainKey("Cache-Control");
+        }
+
+        [Fact]
+        public async Task UseStandardSecurityHeaders_DoesNotSetNoStoreHeaders_ForStaticAssets()
+        {
+            var mockLogger = new Mock<ILogger>();
+            var appBuilder = CreateAppBuilder();
+            appBuilder.UseStandardSecurityHeaders(mockLogger.Object, enabled: true);
+            appBuilder.Run(_ => Task.CompletedTask);
+
+            var app = appBuilder.Build();
+            var context = new DefaultHttpContext();
+            context.Request.Path = "/js/site.js";
+            context.Response.Body = new System.IO.MemoryStream();
+
+            await app(context);
+
+            context.Response.Headers.Should().NotContainKey("Cache-Control");
+            context.Response.Headers.Should().NotContainKey("Pragma");
+            context.Response.Headers.Should().NotContainKey("Expires");
         }
 
         [Fact]

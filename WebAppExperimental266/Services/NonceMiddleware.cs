@@ -24,9 +24,11 @@ namespace WebAppExperimental266.Services
         public async Task InvokeAsync(HttpContext context)
         {
             string caller = "NonceMiddleware.InvokeAsync()";
-            // Generate the nonce
-            await _nonceRefresherService.RefreshNonceAsync();
-            var nonce = _nonceCatalogService.GetANonce("CSPNonce");
+            var nonce = await _nonceRefresherService.RefreshNonceAsync();
+            if (string.IsNullOrWhiteSpace(nonce))
+            {
+                nonce = Nonce.GenerateSecureNonce();
+            }
 
             // Do NOT log the nonce value — logging a nonce in plaintext allows anyone with log
             // access to inject inline scripts by spoofing the known nonce value (Critical #2).

@@ -28,7 +28,7 @@ namespace WebAppExperimental266.Tests.Services
                 RequestTimeoutSeconds = 30,
                 MaxRetryAttempts = 3,
                 CacheDurationMinutes = 60,
-                ServerUnavailableBehavior = "Warn"
+                ServerUnavailableBehavior = "Fail"
             };
 
             _service = new OcspValidationService(_mockLogger.Object, _settings, new HttpClient());
@@ -73,7 +73,7 @@ namespace WebAppExperimental266.Tests.Services
         }
 
         [Fact]
-        public async Task ValidateCertificateWithDetailsAsync_WhenNoServerUrl_ReturnsWarning()
+        public async Task ValidateCertificateWithDetailsAsync_WhenNoServerUrl_ReturnsServerUnavailable()
         {
             // Arrange
             _settings.OcspServerUrl = null;
@@ -85,8 +85,8 @@ namespace WebAppExperimental266.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result.IsValid.Should().BeTrue();
-            result.Status.Should().Be(OcspStatus.Warning);
+            result.IsValid.Should().BeFalse();
+            result.Status.Should().Be(OcspStatus.ServerUnavailable);
             result.Message.Should().Contain("not configured");
         }
 
@@ -152,11 +152,11 @@ namespace WebAppExperimental266.Tests.Services
         }
 
         [Theory]
-        [InlineData("Fail", false, OcspStatus.ServerUnavailable)]
-        [InlineData("Allow", true, OcspStatus.ServerUnavailable)]
-        [InlineData("Warn", true, OcspStatus.Warning)]
-        public async Task ValidateCertificateWithDetailsAsync_ServerUnavailableBehavior_WorksCorrectly(
-            string behavior, bool expectedValid, OcspStatus expectedStatus)
+        [InlineData("Fail")]
+        [InlineData("Allow")]
+        [InlineData("Warn")]
+        public async Task ValidateCertificateWithDetailsAsync_ServerUnavailableBehavior_FailsClosed(
+            string behavior)
         {
             // Arrange
             _settings.OcspServerUrl = null;
@@ -168,8 +168,8 @@ namespace WebAppExperimental266.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result.IsValid.Should().Be(expectedValid);
-            result.Status.Should().Be(expectedStatus);
+            result.IsValid.Should().BeFalse();
+            result.Status.Should().Be(OcspStatus.ServerUnavailable);
         }
 
         [Fact]

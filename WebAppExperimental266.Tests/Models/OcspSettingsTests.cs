@@ -19,7 +19,7 @@ namespace WebAppExperimental266.Tests.Models
             settings.RequestTimeoutSeconds.Should().Be(30, "default timeout should be 30 seconds");
             settings.MaxRetryAttempts.Should().Be(3, "default retry attempts should be 3");
             settings.CacheDurationMinutes.Should().Be(60, "default cache duration should be 60 minutes");
-            settings.ServerUnavailableBehavior.Should().Be("Warn", "default behavior should be Warn");
+            settings.ServerUnavailableBehavior.Should().Be("Fail", "default behavior should fail closed");
             settings.EnableDetailedLogging.Should().BeFalse("detailed logging should be disabled by default");
             settings.SkipValidationInDevelopment.Should().BeTrue("skip validation in dev by default");
             settings.OcspServerUrl.Should().BeNull("OCSP server URL should be null by default");
