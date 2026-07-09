@@ -141,7 +141,7 @@ namespace WebAppExperimental266.Tests.Services
         {
             var fieldInfo = typeof(NonceCatalogService)
                 .GetField("_nonceCollection",
-                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
             fieldInfo.Should().NotBeNull("_nonceCollection field must exist");
 
