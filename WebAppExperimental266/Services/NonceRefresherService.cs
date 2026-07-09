@@ -23,7 +23,7 @@ namespace WebAppExperimental266.Services
         }
 
 
-        public async Task<string> RefreshNonceAsync()
+        public Task<string> RefreshNonceAsync()
         {
             string caller = "NonceRefresherService.RefreshNonce()";
             string CSPNonce = string.Empty;
@@ -48,14 +48,13 @@ namespace WebAppExperimental266.Services
                     LoggingHelper.LogDataProcessingStatusServiceWork(_logger, caller, "", DataProcessingStatus.Success, "Nonce generated successfully.");
                 }
                 _nonceCatalogService.AddANonce("CSPNonce", nonce);
-                await Task.CompletedTask;
             }
             catch (Exception ex)
             {
                 LoggingHelper.LogDataProcessingStatusServiceWork(_logger, caller, "", DataProcessingStatus.Exception, ex.Message);
             }
 
-            return CSPNonce;
+            return Task.FromResult(CSPNonce);
         }
     }
 }

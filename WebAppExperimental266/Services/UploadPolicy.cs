@@ -50,7 +50,7 @@ namespace WebAppExperimental266.Services
             var uploadedBytes = await ReadFileBytesAsync(uploadFile, cancellationToken);
             try
             {
-                using var _ = JsonDocument.Parse(uploadedBytes);
+                using var jsonDocument = JsonDocument.Parse(uploadedBytes);
             }
             catch (JsonException)
             {

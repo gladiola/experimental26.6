@@ -12,6 +12,8 @@ namespace WebAppExperimental266.Tests.Services
         {
             var bytes = Encoding.UTF8.GetBytes("not-json");
             using var stream = new MemoryStream(bytes);
+            // Intentionally mismatched to verify UploadPolicy ignores client-supplied MIME types
+            // and validates the actual JSON payload instead.
             IFormFile formFile = new FormFile(stream, 0, bytes.Length, "uploadFile", "payload.json")
             {
                 Headers = new HeaderDictionary(),
